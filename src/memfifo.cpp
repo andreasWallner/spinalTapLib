@@ -46,6 +46,7 @@ Full list of options can be obtained with '-h'
 #include <sys/types.h>
 #include <time.h>
 #include <libusb.h>
+#include <chrono>
 
 #include "ztex.h"
 #pragma comment(lib, "legacy_stdio_definitions.lib")
@@ -62,7 +63,7 @@ static int paramerr(const char* format,...)
 		    "  -fd <bus>:<device>           Select device by bus number and device address\n"
 		    "  -fs <string>                 Select device by serial number string\n"
 		    "  -fp <string>                 Select device by product string\n"
-		    "  -s <path>                    Additional search path for bitstream, default '.."DIRSEP".."DIRSEP"examples"DIRSEP"memfifo'\n"
+		    "  -s <path>                    Additional search path for bitstream, default '../../examples/memfifo'\n"
 		    "  -r                           Reset device (default: reset configuration only)\n"
 		    "  -i                           Print device info\n"
 		    "  -p                           Print matching USB devices\n"
@@ -207,7 +208,7 @@ int main(int argc, char **argv)
     }
     
     // find bitstream
-    bitstream_fn = ztex_find_bitstream( &info, bitstream_path ? bitstream_path : ".."DIRSEP".."DIRSEP"examples"DIRSEP"memfifo" , "memfifo");
+    bitstream_fn = ztex_find_bitstream( &info, bitstream_path ? bitstream_path : "../../examples/memfifo" , "memfifo");
     if ( bitstream_fn )  {
 	printf("Using bitstream '%s'\n", bitstream_fn);
 	fflush(stdout);
@@ -246,7 +247,7 @@ nobitstream:
         goto err;
     }
 
-    mbuf = malloc(BULK_BUF_SIZE);
+    mbuf = (unsigned char *)malloc(BULK_BUF_SIZE);
     if ( !mbuf ) {
         fprintf(stderr,"Error allocating %d bytes\n", BULK_BUF_SIZE);
         goto err;
@@ -310,8 +311,9 @@ nobitstream:
     printf("Measuring read rate using libusb_bulk_transfer ... \n");
     fflush(stdout);
     size=0;
+    std::chrono::high_resolution_clock::time_point start;
     for (int i=0; i<55; i++) {
-	//if ( i==5 ) gettimeofday(&tv1, NULL);
+	if ( i==5 ) start = std::chrono::high_resolution_clock::now();
 	TWO_TRIES( status, libusb_bulk_transfer(handle, info.default_in_ep, mbuf, BULK_BUF_SIZE, &transferred, 2000));
 	if ( status < 0 ) {
     	    fprintf(stderr,"Bulk read error: %s\n", libusb_error_name(status));
@@ -322,8 +324,9 @@ nobitstream:
 	}
 	if ( i>=5 ) size+=transferred;
     }
-    //gettimeofday(&tv2, NULL);
-    //printf("Read %.1f MB at %.1f MB/s\n", size/(1024.0*1024.0), size/( (tv2.tv_sec-tv1.tv_sec)*1e6 + (tv2.tv_usec-tv1.tv_usec) )); 
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<float, std::micro> usecs = end - start;
+    printf("Read %.1f MB at %.1f MB/s\n", size/(1024.0*1024.0), size/usecs.count()); 
     fflush(stdout);
 
     // release resources
