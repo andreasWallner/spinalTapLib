@@ -51,6 +51,7 @@ Full list of options can be obtained with '-h'
 #include <string.h>
 #include <sys/types.h>
 #include <time.h>
+#include <vector>
 
 #include "ztex.h"
 #pragma comment(lib, "legacy_stdio_definitions.lib")
@@ -59,6 +60,10 @@ Full list of options can be obtained with '-h'
   65000 // must be smaller then FIFO size, 64K on USB-FPGA Module 2.01
 
 static char *prog_name = NULL; // name of the program
+
+static int readWriteTest(libusb_device_handle *handle, ztex_device_info *info);
+static int readBandwidthTest(libusb_device_handle *handle,
+                             ztex_device_info *info);
 
 static int paramerr(const char *format, ...) {
   fprintf(stderr, "Usage: %s options\n", prog_name);
@@ -100,7 +105,6 @@ int main(int argc, char **argv) {
   ztex_device_info info;
   char *bitstream_fn = NULL, *bitstream_path = NULL;
   char sbuf[8192];
-  unsigned char *mbuf = NULL;
   int transferred, size;
   struct timeval tv1, tv2;
 
@@ -277,105 +281,12 @@ nobitstream:
     goto err;
   }
 
-  mbuf = (unsigned char *)malloc(BULK_BUF_SIZE);
-  if (!mbuf) {
-    fprintf(stderr, "Error allocating %d bytes\n", BULK_BUF_SIZE);
+  status = readWriteTest(handle, &info);
+  if (status < 0)
     goto err;
-  }
-
-  // verify mode and prepare device if necessary
-  if (ztex_default_gpio_ctl(handle, 0, 0)) {
-    fprintf(stderr, "Warning: wrong initial mode, switching to mode 0\n");
-    ztex_default_gpio_ctl(handle, 7, 0);
-    ztex_default_reset(handle, 0);
-    libusb_bulk_transfer(handle, info.default_in_ep, mbuf, BULK_BUF_SIZE,
-                         &transferred, 250);
-  } else {
-    status = libusb_bulk_transfer(handle, info.default_in_ep, mbuf,
-                                  BULK_BUF_SIZE, &transferred, 250);
-    if ((status >= 0) && (transferred > 0))
-      fprintf(stderr, "Warning: found %d bytes in EZ-USB FIFO\n", transferred);
-  }
-  fflush(stderr);
-
-  // test 1: read-write test (mode 0)
-  for (int i = 0; i < RW_SIZE; i += 2) {
-    mbuf[i] = (i >> 1) & 127;
-    mbuf[i + 1] = 128 | ((i >> 8) & 127);
-  }
-  TWO_TRIES(status, libusb_bulk_transfer(handle, info.default_out_ep, mbuf,
-                                         RW_SIZE, &transferred, 2000));
-  if (status < 0) {
-    fprintf(stderr, "Bulk write error: %s\n", libusb_error_name(status));
+  status = readBandwidthTest(handle, &info);
+  if (status < 0)
     goto err;
-  }
-  printf("Read-write test, short packet test: wrote %d Bytes\n", transferred);
-  fflush(stdout);
-
-  TWO_TRIES(status, libusb_bulk_transfer(handle, info.default_in_ep, mbuf,
-                                         BULK_BUF_SIZE, &transferred, 4000));
-  if (status < 0) {
-    fprintf(stderr, "Bulk read error: %s\n", libusb_error_name(status));
-    goto err;
-  }
-  {
-    int i = mbuf[0] >> 7;
-    int j = mbuf[i] | ((mbuf[i + 1] & 127) << 7);
-    printf("Read-write test: read (%d=%d*512+%d) Bytes.  %d leading Bytes lost",
-           transferred, transferred / 512, transferred & 511, j * 2);
-    if (j)
-      printf("(This may be platform specific)");
-    size = 0;
-    for (i = i + 2; i + 1 < transferred; i += 2) {
-      int k = mbuf[i] | ((mbuf[i + 1] & 127) << 7);
-      if (k != ((j + 1) & 0x3fff))
-        size += 1;
-      j = k;
-    }
-    printf(". %d data errors.  %d Bytes remaining in FIFO due to memory "
-           "transfer granularity\n",
-           size, RW_SIZE - transferred);
-    fflush(stdout);
-  }
-
-  // test 2: read rate test using test data generator (mode 1)
-  // reset application and set mode 1
-  ztex_default_reset(handle, 0);
-  status = ztex_default_gpio_ctl(handle, 7, 1);
-  if (status < 0) {
-    fprintf(stderr, "Error setting GPIO's: %s\n", libusb_error_name(status));
-    goto err;
-  }
-
-  // read data and measure time, first packets are ignored because EZ-USB buffer
-  // may be filled
-  printf("Measuring read rate using libusb_bulk_transfer ... \n");
-  fflush(stdout);
-  size = 0;
-  std::chrono::high_resolution_clock::time_point start;
-  for (int i = 0; i < 55; i++) {
-    if (i == 5)
-      start = std::chrono::high_resolution_clock::now();
-    TWO_TRIES(status, libusb_bulk_transfer(handle, info.default_in_ep, mbuf,
-                                           BULK_BUF_SIZE, &transferred, 2000));
-    if (status < 0) {
-      fprintf(stderr, "Bulk read error: %s\n", libusb_error_name(status));
-      goto err;
-    }
-    if ((i == 0) && ((mbuf[0] != 0) && (mbuf[1] != 239))) {
-      fprintf(
-          stderr,
-          "Warning: Invalid start of data: %d %d, leading data may went lost\n",
-          mbuf[0], mbuf[1]);
-    }
-    if (i >= 5)
-      size += transferred;
-  }
-  auto end = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<float, std::micro> usecs = end - start;
-  printf("Read %.1f MB at %.1f MB/s\n", size / (1024.0 * 1024.0),
-         size / usecs.count());
-  fflush(stdout);
 
   // release resources
   status = 0;
@@ -383,8 +294,6 @@ nobitstream:
 err:
   status = 1;
 noerr:
-  if (mbuf)
-    free(mbuf);
   if (bitstream_fn)
     free(bitstream_fn);
   if (handle) {
@@ -401,4 +310,114 @@ noerr:
 #endif
   return status;
 }
-///@endcond
+
+static int readWriteTest(libusb_device_handle *handle, ztex_device_info *info) {
+  std::vector<uint8_t> mbuf(BULK_BUF_SIZE, 0);
+  int transferred;
+  int status;
+
+  // verify mode and prepare device if necessary
+  if (ztex_default_gpio_ctl(handle, 0, 0)) {
+    fprintf(stderr, "Warning: wrong initial mode, switching to mode 0\n");
+    ztex_default_gpio_ctl(handle, 7, 0);
+    ztex_default_reset(handle, 0);
+    libusb_bulk_transfer(handle, info->default_in_ep, mbuf.data(), mbuf.size(),
+                         &transferred, 250);
+  } else {
+    status = libusb_bulk_transfer(handle, info->default_in_ep, mbuf.data(),
+                                  mbuf.size(), &transferred, 250);
+    if ((status >= 0) && (transferred > 0))
+      fprintf(stderr, "Warning: found %d bytes in EZ-USB FIFO\n", transferred);
+  }
+  fflush(stderr);
+
+  // test 1: read-write test (mode 0)
+  for (int i = 0; i < RW_SIZE; i += 2) {
+    mbuf[i] = (i >> 1) & 127;
+    mbuf[i + 1] = 128 | ((i >> 8) & 127);
+  }
+  TWO_TRIES(status,
+            libusb_bulk_transfer(handle, info->default_out_ep, mbuf.data(),
+                                 RW_SIZE, &transferred, 2000));
+  if (status < 0) {
+    fprintf(stderr, "Bulk write error: %s\n", libusb_error_name(status));
+    return -1;
+  }
+  printf("Read-write test, short packet test: wrote %d Bytes\n", transferred);
+  fflush(stdout);
+
+  TWO_TRIES(status,
+            libusb_bulk_transfer(handle, info->default_in_ep, mbuf.data(),
+                                 mbuf.size(), &transferred, 4000));
+  if (status < 0) {
+    fprintf(stderr, "Bulk read error: %s\n", libusb_error_name(status));
+    return -1;
+  }
+  {
+    int i = mbuf[0] >> 7;
+    int j = mbuf[i] | ((mbuf[i + 1] & 127) << 7);
+    printf("Read-write test: read (%d=%d*512+%d) Bytes.  %d leading Bytes lost",
+           transferred, transferred / 512, transferred & 511, j * 2);
+    if (j)
+      printf("(This may be platform specific)");
+    int size = 0;
+    for (i = i + 2; i + 1 < transferred; i += 2) {
+      int k = mbuf[i] | ((mbuf[i + 1] & 127) << 7);
+      if (k != ((j + 1) & 0x3fff))
+        size += 1;
+      j = k;
+    }
+    printf(". %d data errors.  %d Bytes remaining in FIFO due to memory "
+           "transfer granularity\n",
+           size, RW_SIZE - transferred);
+    fflush(stdout);
+  }
+  return 0;
+}
+
+static int readBandwidthTest(libusb_device_handle *handle,
+                             ztex_device_info *info) {
+  std::vector<uint8_t> mbuf(BULK_BUF_SIZE, 0);
+  int transferred;
+
+  // test 2: read rate test using test data generator (mode 1)
+  // reset application and set mode 1
+  ztex_default_reset(handle, 0);
+  int status = ztex_default_gpio_ctl(handle, 7, 1);
+  if (status < 0) {
+    fprintf(stderr, "Error setting GPIO's: %s\n", libusb_error_name(status));
+    return -1;
+  }
+
+  // read data and measure time, first packets are ignored because EZ-USB buffer
+  // may be filled
+  printf("Measuring read rate using libusb_bulk_transfer ... \n");
+  fflush(stdout);
+  int size = 0;
+  std::chrono::high_resolution_clock::time_point start;
+  for (int i = 0; i < 55; i++) {
+    if (i == 5)
+      start = std::chrono::high_resolution_clock::now();
+    TWO_TRIES(status,
+              libusb_bulk_transfer(handle, info->default_in_ep, mbuf.data(),
+                                   mbuf.size(), &transferred, 2000));
+    if (status < 0) {
+      fprintf(stderr, "Bulk read error: %s\n", libusb_error_name(status));
+      return -1;
+    }
+    if ((i == 0) && ((mbuf[0] != 0) && (mbuf[1] != 239))) {
+      fprintf(
+          stderr,
+          "Warning: Invalid start of data: %d %d, leading data may went lost\n",
+          mbuf[0], mbuf[1]);
+    }
+    if (i >= 5)
+      size += transferred;
+  }
+  auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<float, std::micro> usecs = end - start;
+  printf("Read %.1f MB at %.1f MB/s\n", size / (1024.0 * 1024.0),
+         size / usecs.count());
+  fflush(stdout);
+  return 0;
+}
