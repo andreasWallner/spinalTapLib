@@ -1,0 +1,10 @@
+set(CMAKE_C_CLANG_TIDY "")
+set(CMAKE_CXX_CLANG_TIDY "")
+
+add_subdirectory(libusb-1.0.23/libusb)
+add_subdirectory(libztex)
+add_subdirectory(fmt EXCLUDE_FROM_ALL)
+add_subdirectory(clipp EXCLUDE_FROM_ALL)
+add_subdirectory(gsl EXCLUDE_FROM_ALL)
+add_subdirectory(catch2 EXCLUDE_FROM_ALL)
+add_subdirectory(libusb++ EXCLUDE_FROM_ALL)

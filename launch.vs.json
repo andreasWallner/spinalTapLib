@@ -1,0 +1,24 @@
+{
+  "version": "0.2.1",
+  "defaults": {},
+  "configurations": [
+    {
+      "type": "default",
+      "project": "CMakeLists.txt",
+      "projectTarget": "memfifo.exe",
+      "name": "memfifo.exe",
+      "args": [
+        "-b",
+        "C:/work/tmp/Board_2_14.bit",
+        "-tlb"
+      ]
+    },
+    {
+      "type": "default",
+      "project": "CMakeLists.txt",
+      "projectTarget": "test_libusbpp.exe",
+      "name": "test_libusbpp verbose",
+      "args": ["--interactive", "-p", "1337"]
+    }
+  ]
+}

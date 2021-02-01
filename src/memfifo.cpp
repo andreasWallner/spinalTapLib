@@ -42,6 +42,10 @@ Full list of options can be obtained with '-h'
 @cond memfifo
 */
 
+#include "clipp.h"
+#include "fmt/core.h"
+#include "random.hpp"
+
 #include <chrono>
 #include <fcntl.h>
 #include <libusb.h>
@@ -54,44 +58,21 @@ Full list of options can be obtained with '-h'
 #include <vector>
 
 #include "ztex.h"
+#include <iostream>
 #pragma comment(lib, "legacy_stdio_definitions.lib")
+
 #define BULK_BUF_SIZE 4 * 1024 * 1024
-#define RW_SIZE                                                                \
-  65000 // must be smaller then FIFO size, 64K on USB-FPGA Module 2.01
+
+// must be smaller then FIFO size, 64K on USB-FPGA Module 2.01
+#define RW_SIZE 65000
 
 static char *prog_name = NULL; // name of the program
 
 static int readWriteTest(libusb_device_handle *handle, ztex_device_info *info);
 static int readBandwidthTest(libusb_device_handle *handle,
                              ztex_device_info *info);
-
-static int paramerr(const char *format, ...) {
-  fprintf(stderr, "Usage: %s options\n", prog_name);
-  fprintf(
-      stderr,
-      "  -h                           Display this usage information\n"
-      "  -fu <vendor ID>:<product ID> Select device by USB IDs, default: "
-      "0x221A:0x100, <0:ignore ID\n"
-      "  -fd <bus>:<device>           Select device by bus number and device "
-      "address\n"
-      "  -fs <string>                 Select device by serial number string\n"
-      "  -fp <string>                 Select device by product string\n"
-      "  -s <path>                    Additional search path for bitstream, "
-      "default '../../examples/memfifo'\n"
-      "  -r                           Reset device (default: reset "
-      "configuration only)\n"
-      "  -i                           Print device info\n"
-      "  -p                           Print matching USB devices\n"
-      "  -pa                          Print all USB devices\n");
-  if (format) {
-    va_list args;
-    va_start(args, format);
-    vfprintf(stderr, format, args);
-    va_end(args);
-    return 1;
-  }
-  return 0;
-}
+static int readValueTest(libusb_device_handle *handle, ztex_device_info *info);
+static int loopbackTest(libusb_device_handle *handle, ztex_device_info *info);
 
 int main(int argc, char **argv) {
   int id_vendor = 0x221A; // ZTEX vendor ID
@@ -100,61 +81,59 @@ int main(int argc, char **argv) {
   libusb_device **devs = NULL;
   int print_all = 0, print = 0, print_info = 0, reset_dev = 0;
   int busnum = -1, devnum = -1;
-  char *sn_string = NULL, *product_string = NULL;
+  std::string sn_string, product_string,
+      bitstream_path = "../../examples/memfifo";
   libusb_device_handle *handle = NULL;
   ztex_device_info info;
-  char *bitstream_fn = NULL, *bitstream_path = NULL;
+  std::string bitstream_fn;
   char sbuf[8192];
-  int transferred, size;
-  struct timeval tv1, tv2;
+  bool test_write = false, test_read_bandwidth = false, test_loopback = false,
+       test_read_data = false;
 
-  // process parameters
-  prog_name = argv[0];
-  for (int i = 1; i < argc; i++) {
-    if (!strcmp(argv[i], "-h"))
-      return paramerr(NULL);
-    else if (!strcmp(argv[i], "-p"))
-      print = 1;
-    else if (!strcmp(argv[i], "-pa"))
-      print_all = 1;
-    else if (!strcmp(argv[i], "-i"))
-      print_info = 1;
-    else if (!strcmp(argv[i], "-r"))
-      reset_dev = 1;
-    else if (!strcmp(argv[i], "-fu")) {
-      i++;
-      if (i >= argc || sscanf(argv[i], "%i:%i", &id_vendor, &id_product) != 2)
-        return paramerr("Error: <vendor ID>:<product ID> expected after -fu\n");
-    } else if (!strcmp(argv[i], "-fd")) {
-      i++;
-      if (i >= argc || sscanf(argv[i], "%i:%i", &busnum, &devnum) != 2)
-        return paramerr("Error: <bus>:<device> expected after -fd\n");
-    } else if (!strcmp(argv[i], "-fs")) {
-      i++;
-      if (i >= argc)
-        return paramerr("Error: <string> expected after -fs\n");
-      sn_string = argv[i];
-    } else if (!strcmp(argv[i], "-fp")) {
-      i++;
-      if (i >= argc)
-        return paramerr("Error: <string> expected after -fp\n");
-      product_string = argv[i];
-    } else if (!strcmp(argv[i], "-s")) {
-      i++;
-      if (i >= argc)
-        return paramerr("Error: <path> expected after -s\n");
-      bitstream_path = argv[i];
-    } else
-      return paramerr("Error: Invalid parameter %s\n", argv[i]);
+  auto cli =
+      (clipp::option("-p").set(print, 1).doc("Print matching USB devices"),
+       clipp::option("-pa").set(print_all, 1).doc("Print all USB devices"),
+       clipp::option("-i").set(print_info, 1).doc("Print device info"),
+       clipp::option("-r")
+           .set(reset_dev, 1)
+           .doc("Reset device (default: reset configuration only)"),
+       clipp::option("-fu").doc("Select device by USB IDs, default: "
+                                "0x221A 0x100, 0:ignore ID") &
+           clipp::value("vendor", id_vendor) &
+           clipp::value("product", id_product),
+       clipp::option("-fd").doc(
+           "Select device by bus number and device address") &
+           clipp::value("bus", busnum) & clipp::value("dev", devnum),
+       clipp::option("-fs").doc("Select device by serial number string") &
+           clipp::value("serialnumber", sn_string),
+       clipp::option("-fp").doc("Select device by product string") &
+           clipp::value("product_string", product_string),
+       clipp::option("-s").doc("Additional search path for bitstream") &
+           clipp::value(bitstream_path),
+       clipp::required("-b").doc("Bitstream path") &
+           clipp::value("path", bitstream_fn),
+       clipp::option("-tw").set(test_write),
+       clipp::option("-trb").set(test_read_bandwidth),
+       clipp::option("-tlb").set(test_loopback),
+       clipp::option("-trd").set(test_read_data));
+
+  auto result = clipp::parse(argc, argv, cli);
+
+  if (result.any_error()) {
+    std::cout << "Usage:\n"
+              << clipp::usage_lines(cli, "progname") << "\nOptions:\n"
+              << clipp::documentation(cli) << '\n';
+    exit(-1);
   }
 
-  // INIT libusb
+  // INIT libusb,
   status = libusb_init(NULL);
   if (status < 0) {
     fprintf(stderr, "Error: Unable to init libusb: %s\n",
             libusb_error_name(status));
     return 1;
   }
+  libusb_set_option(nullptr, LIBUSB_OPTION_LOG_LEVEL, LIBUSB_LOG_LEVEL_DEBUG);
 
   // find all USB devices
   status = libusb_get_device_list(NULL, &devs);
@@ -167,7 +146,9 @@ int main(int argc, char **argv) {
   // print bus info or find device
   int dev_idx = ztex_scan_bus(
       sbuf, sizeof(sbuf), devs, print_all ? -1 : print ? 1 : 0, id_vendor,
-      id_product, busnum, devnum, sn_string, product_string);
+      id_product, busnum, devnum,
+      sn_string.length() == 0 ? nullptr : sn_string.c_str(),
+      product_string.length() == 0 ? nullptr : product_string.c_str());
   printf(sbuf);
   fflush(stdout);
   if (print || print_all) {
@@ -238,22 +219,10 @@ int main(int argc, char **argv) {
     goto noerr;
   }
 
-  // find bitstream
-  bitstream_fn = ztex_find_bitstream(
-      &info, bitstream_path ? bitstream_path : "../../examples/memfifo",
-      "memfifo");
-  if (bitstream_fn) {
-    printf("Using bitstream '%s'\n", bitstream_fn);
-    fflush(stdout);
-  } else {
-    fprintf(stderr, "Warning: Bitstream not found\n");
-    goto nobitstream;
-  }
-
   // read and upload bitstream
-  FILE *fd = fopen(bitstream_fn, "rb");
+  FILE *fd = fopen(bitstream_fn.c_str(), "rb");
   if (fd == NULL) {
-    fprintf(stderr, "Warning: Error opening file '%s'\n", bitstream_fn);
+    fprintf(stderr, "Warning: Error opening file '%s'\n", bitstream_fn.c_str());
     goto nobitstream;
   }
   status = ztex_upload_bitstream(sbuf, sizeof(sbuf), handle, &info, fd, -1);
@@ -281,12 +250,19 @@ nobitstream:
     goto err;
   }
 
-  status = readWriteTest(handle, &info);
-  if (status < 0)
-    goto err;
+#if 0
+    status = readWriteTest(handle, &info);
+    if (status < 0)
+      goto err;
   status = readBandwidthTest(handle, &info);
   if (status < 0)
     goto err;
+#endif
+  if (test_loopback) {
+    status = loopbackTest(handle, &info);
+  } else if (test_read_data) {
+    status = readValueTest(handle, &info);
+  }
 
   // release resources
   status = 0;
@@ -294,8 +270,6 @@ nobitstream:
 err:
   status = 1;
 noerr:
-  if (bitstream_fn)
-    free(bitstream_fn);
   if (handle) {
     libusb_release_interface(handle, 0);
     libusb_close(handle);
@@ -303,11 +277,6 @@ noerr:
   if (devs)
     libusb_free_device_list(devs, 1);
   libusb_exit(NULL);
-#if defined(WIN32) || defined(_WIN32) || defined(WIN64) || defined(_WIN64)
-  printf("Press <return> to quit\n");
-  fflush(NULL);
-  fgetc(stdin);
-#endif
   return status;
 }
 
@@ -419,5 +388,95 @@ static int readBandwidthTest(libusb_device_handle *handle,
   printf("Read %.1f MB at %.1f MB/s\n", size / (1024.0 * 1024.0),
          size / usecs.count());
   fflush(stdout);
+  return 0;
+}
+
+static int loopbackTest(libusb_device_handle *handle, ztex_device_info *info) {
+  ztex_default_reset(handle, 0);
+  int status = ztex_default_gpio_ctl(handle, 7, 0);
+  if (status < 0) {
+    fprintf(stderr, "Error setting GPIO's: %s\n", libusb_error_name(status));
+    return -1;
+  }
+
+  std::vector<uint8_t> txbuf(1024, 0);
+  xorshift16 xs;
+  std::generate(begin(txbuf), end(txbuf), [&]() { return xs(); });
+
+  int transferred;
+  TWO_TRIES(status,
+            libusb_bulk_transfer(handle, info->default_out_ep, txbuf.data(),
+                                 txbuf.size(), &transferred, 4000));
+  if (status < 0) {
+    fprintf(stderr, "Bulk write error: %s\n", libusb_error_name(status));
+    return -1;
+  }
+
+  fmt::print("sent {}\n", transferred);
+
+  std::vector<uint8_t> rxbuf(BULK_BUF_SIZE, 0);
+  int received;
+  TWO_TRIES(status,
+            libusb_bulk_transfer(handle, info->default_in_ep, rxbuf.data(),
+                                 rxbuf.size(), &received, 4000));
+  if (status < 0) {
+    fprintf(stderr, "Bulk read error: %s\n", libusb_error_name(status));
+    return -1;
+  }
+
+  fmt::print("received {}\n", received);
+
+  bool error = false;
+  for (size_t i = 0; i < min(received, transferred); i++) {
+    if (txbuf[i] != rxbuf[i]) {
+      fmt::print("{}: {:04x} != {:04x}\n", i, txbuf[i], rxbuf[i]);
+      error = true;
+    }
+  }
+  if (!error)
+    fmt::print("DONE: OK\n");
+}
+
+static int readValueTest(libusb_device_handle *handle, ztex_device_info *info) {
+  std::vector<uint8_t> mbuf(BULK_BUF_SIZE, 0);
+  int transferred;
+
+  ztex_default_reset(handle, 0);
+  int status = ztex_default_gpio_ctl(handle, 7, 1);
+  if (status < 0) {
+    fprintf(stderr, "Error setting GPIO's: %s\n", libusb_error_name(status));
+    return -1;
+  }
+
+  int size{0}; // seed so that first result is 1, matching HW
+  int errors{0};
+  xorshift16 xs{0xc181};
+  while (size < 2000000) {
+    TWO_TRIES(status,
+              libusb_bulk_transfer(handle, info->default_in_ep, mbuf.data(),
+                                   mbuf.size(), &transferred, 2000));
+    if (status < 0) {
+      fprintf(stderr, "Bulk read error: %s\n", libusb_error_name(status));
+      return -1;
+    }
+    fmt::print("transferred: {}\n", transferred);
+    if (transferred % 2)
+      return -1;
+    uint16_t *mbuf16 = reinterpret_cast<uint16_t *>(mbuf.data());
+    while (transferred >= 2) {
+      size++;
+      uint16_t expected = xs();
+      if (*mbuf16 != expected) {
+        fmt::print("{}: 0x{:04x} != 0x{:04x}\n", size, *mbuf16, expected);
+        if (errors++ > 20)
+          return -1;
+      } else if (size < 20) {
+        fmt::print("{}: 0x{:04x} == 0x{:04x}\n", size, *mbuf16, expected);
+      }
+      mbuf16++;
+      transferred -= 2;
+    }
+  }
+
   return 0;
 }
