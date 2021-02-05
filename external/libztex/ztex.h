@@ -37,6 +37,8 @@ extern "C" {
 #endif
 
 #include <sys/types.h>
+#define NOMINMAX 
+#define VC_EXTRALEAN
 #include <libusb.h>
 
 /// @cond macros
@@ -68,7 +70,7 @@ typedef struct {
 	unsigned char  board_variant[3];
 	/// Endpoint for fast FPGA configuration; 0 means unsupported
 	uint8_t  fast_config_ep;
-	/// Interface for fast FPGA configuration
+	/// interface for fast FPGA configuration
 	uint8_t  fast_config_if;
 	/// default interface major version number; 0 means default interface not available
 	uint8_t  default_version1;
@@ -90,7 +92,7 @@ typedef struct {
   * @param ps Filter by product string, ignored if NULL
   * @return The device index if filter result unique, otherwise -1
   */
-int ztex_scan_bus(char *sbuf, int sbuflen, libusb_device **devs, int op, int id_vendor, int id_product, int busnum, int devnum, char* sn, char* ps);
+int ztex_scan_bus(char *sbuf, int sbuflen, libusb_device **devs, int op, int id_vendor, int id_product, int busnum, int devnum, const char* sn, const char* ps);
 int ztex_get_device_info(libusb_device_handle *handle, ztex_device_info *info);
 int ztex_print_device_info(char* sbuf, int sbuflen, const ztex_device_info *info);
 

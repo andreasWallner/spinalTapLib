@@ -1,5 +1,5 @@
 #define CATCH_CONFIG_MAIN
-#include "catch.hpp"
+#include "catch2/catch_all.hpp"
 
 template <int c, int bit> struct mask_recurse {
   static int foo(int n) {

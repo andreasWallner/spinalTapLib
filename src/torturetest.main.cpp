@@ -31,7 +31,9 @@ int main(int argc, char *argv[]) {
 
     auto sender = std::async([&] {
       for (int i = 0; i < cnt; i++) {
-        std::array<uint8_t, 5> data = {0x11 + i, 0x22 + i, 0x33 + i, 0x44 + i, 0x55 + i};
+        std::array<uint8_t, 5> data = {(uint8_t)(0x11 + i), (uint8_t)(0x22 + i),
+                                       (uint8_t)(0x33 + i), (uint8_t)(0x44 + i),
+                                       (uint8_t)(0x55 + i)};
         out_ep.bulk_write(data, 20s);
       }
     });

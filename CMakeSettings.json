@@ -1,5 +1,4 @@
 ﻿{
-  // See https://go.microsoft.com//fwlink//?linkid=834763 for more information about this file.
   "configurations": [
     {
       "name": "x64-Debug",
@@ -11,7 +10,8 @@
       "cmakeCommandArgs": "",
       "buildCommandArgs": "-v",
       "ctestCommandArgs": "",
-      "enableClangTidyCodeAnalysis": true
+      "enableClangTidyCodeAnalysis": true,
+      "variables": []
     }
   ]
 }

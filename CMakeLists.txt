@@ -14,13 +14,13 @@ endif()
 add_subdirectory(external)
 
 add_executable(test_libusbpp "src/test_usb++.cpp" "src/ztexpp.cpp" "src/utils.cpp" "src/spinaltap.hpp" "src/spinaltap.cpp")
-target_link_libraries(test_libusbpp libztex fmt clipp::clipp Microsoft.GSL::GSL libusb++::libusb++)
+target_link_libraries(test_libusbpp libztex fmt::fmt clipp::clipp Microsoft.GSL::GSL libusb++::libusb++)
 
 add_executable(torturetest
     "src/torturetest.main.cpp"
     "src/utils.cpp"
 )
-target_link_libraries(torturetest fmt clipp::clipp Microsoft.GSL::GSL libusb++::libusb++)
+target_link_libraries(torturetest fmt::fmt clipp::clipp Microsoft.GSL::GSL libusb++::libusb++)
 
 add_executable(test "src/test.cpp")
-target_link_libraries(test catch2)
+target_link_libraries(test Catch2::Catch2WithMain)

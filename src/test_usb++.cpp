@@ -389,9 +389,10 @@ std::vector<uint8_t> randomBrightColor() {
 
 static void writeRegisters(usb::out_endpoint &out_ep, usb::in_endpoint &in_ep,
                            gsl::span<uint8_t, 3> values) {
+  static uint8_t source = 0;
   std::array<uint8_t, 8 * 3> msg;
   for (int i = 0; i < 3; i++) {
-    msg[i * 8] = 0;
+    msg[i * 8] = source++;
     msg[i * 8 + 1] = static_cast<uint8_t>(bus_master::cmd::write);
     util::endian::store(
         0x04 * (i + 1),

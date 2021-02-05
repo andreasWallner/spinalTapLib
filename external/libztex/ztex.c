@@ -34,7 +34,7 @@ This API is used for developing host software in C. It is a re-implementation a 
 <h2>Features</h2>
 The main features are:
 <ul>
-    <li> Full support of <a href="http://www.ztex.de/firmware-kit/default.e.html">Default Interface</a> 
+    <li> Full support of <a href="http://www.ztex.de/firmware-kit/default.e.html">Default interface</a>
 	<ul>
 	    <li> Multiple communication interfaces: high speed, low speed, GPIO's, reset signal
 	    <li> Compatibility allows board independent host software
@@ -109,7 +109,7 @@ buf__[0]=0;
   * @param sbuflen length of the string buffer
   * @return The device index if filter result unique, otherwise -1
   */
-int ztex_scan_bus(char *sbuf, int sbuflen, libusb_device **devs, int op, int id_vendor, int id_product, int busnum, int devnum, char* sn, char* ps)
+int ztex_scan_bus(char *sbuf, int sbuflen, libusb_device **devs, int op, int id_vendor, int id_product, int busnum, int devnum, const char* sn, const char* ps)
 {
     libusb_device *dev;
     int status = 0;
@@ -132,7 +132,7 @@ int ztex_scan_bus(char *sbuf, int sbuflen, libusb_device **devs, int op, int id_
         dn = libusb_get_device_address(dev);
         status = libusb_get_device_descriptor(dev, &dev_desc);
 	if (status < 0) {
-	    SPRINTF("Warning: Bus %d Device %d: can't read device descriptor %s\n",  bn, dn, libusb_error_name(status));
+	    SPRINTF("Warning: Bus %d device %d: can't read device descriptor %s\n",  bn, dn, libusb_error_name(status));
 	} else if ( ((id_vendor<0) || (dev_desc.idVendor==id_vendor)) && 
 	            ((id_product<0) || (dev_desc.idProduct==id_product)) &&
 	            ((busnum<0) || (busnum==bn)) && 
@@ -152,7 +152,7 @@ int ztex_scan_bus(char *sbuf, int sbuflen, libusb_device **devs, int op, int id_
 	    }
 	    
 	    if ( ( (sn==NULL) || (strcmp(sn,sn_string)==0) ) && ( (ps==NULL) || (strcmp(ps,product_string)==0) ) ) {
-		if ( op ) SPRINTF("Bus %d Device %d:    ID 0x%x:0x%x    Product '%s'    SN '%s'\n",bn, dn, dev_desc.idVendor, dev_desc.idProduct, product_string, sn_string);
+		if ( op ) SPRINTF("Bus %d device %d:    ID 0x%x:0x%x    Product '%s'    SN '%s'\n",bn, dn, dev_desc.idVendor, dev_desc.idProduct, product_string, sn_string);
 		if ( dev_idx<=0 ) {
 		    result = i;
 		    dev_idx = i;
