@@ -4,6 +4,7 @@
 #include "libusb++/utils.hpp"
 #include "numeric_utils.hpp"
 #include "random.hpp"
+#include "spinaltap.hpp"
 #include "ztexpp.hpp"
 
 #include "utils.hpp"
@@ -15,13 +16,14 @@
 #include <random>
 #include <stdexcept>
 #include <string>
+#include <thread>
+#include <cmath>
 
 using namespace numeric_utils;
 
 static void loopbackTest(usb::interface &intf, ztex::dev_info &info);
 static void readValueTest(usb::interface &intf, ztex::dev_info &info);
-static bool interactiveShell(usb::interface &intf, usb::in_endpoint &in_ep,
-                             usb::out_endpoint &out_ep);
+static bool interactiveShell(spinaltap::device &device);
 
 int main(int argc, char *argv[]) {
   using filter_predicate =
@@ -170,7 +172,8 @@ int main(int argc, char *argv[]) {
           try {
             usb::in_endpoint in_ep{intf, 1};
             usb::out_endpoint out_ep{intf, 2};
-            loop = interactiveShell(intf, in_ep, out_ep);
+            spinaltap::device device{out_ep, in_ep};
+            loop = interactiveShell(device);
           } catch (std::runtime_error &e) {
             fmt::print("Error: {}\n", e.what());
           } catch (usb::usb_error &e) {
@@ -264,180 +267,43 @@ int to_int(std::string num) {
   return val;
 }
 
-namespace util {
-namespace endian {
-void store(uint16_t v, gsl::span<uint8_t, 2> buffer) {
-  buffer[0] = static_cast<uint8_t>(v);
-  buffer[1] = static_cast<uint8_t>(v >> 8);
-}
-void store(uint32_t v, gsl::span<uint8_t, 4> buffer) {
-  buffer[0] = static_cast<uint8_t>(v);
-  buffer[1] = static_cast<uint8_t>(v >> 8);
-  buffer[2] = static_cast<uint8_t>(v >> 16);
-  buffer[3] = static_cast<uint8_t>(v >> 24);
-}
-template <typename T> T load(gsl::span<uint8_t> buffer);
-template <> uint16_t load(gsl::span<uint8_t> buffer) {
-  return (buffer[1] << 8) | buffer[0];
-}
-template <> uint32_t load(gsl::span<uint8_t> buffer) {
-  return (buffer[3] << 24) | (buffer[2] << 16) | (buffer[1] << 8) | buffer[0];
-}
-} // namespace endian
-} // namespace util
-
-namespace bus_master {
-enum class cmd : uint8_t { write = 0x01, read = 0x02, flush = 0xff };
-}
-namespace peripherals {
-namespace gpio {
-constexpr uint16_t in = 0x0000;
-constexpr uint16_t out = 0x0004;
-constexpr uint16_t enable = 0x0008;
-} // namespace gpio
-namespace pwm0 {
-constexpr uint16_t conf = 0x0100;
-constexpr uint16_t prescaler = 0x0104;
-constexpr uint16_t max_cnt = 0x0108;
-constexpr std::array<uint16_t, 10> level = {0x010c, 0x0110, 0x0114, 0x0118,
-                                            0x011c, 0x0120, 0x0124, 0x0128,
-                                            0x012c, 0x0130};
-} // namespace pwm0
-} // namespace peripherals
-
-static void writeRegister(usb::out_endpoint &out_ep, usb::in_endpoint &in_ep,
-                          uint16_t address, uint32_t value) {
-  std::array<uint8_t, 8> msg;
-  msg[0] = 0;
-  msg[1] = static_cast<uint8_t>(bus_master::cmd::write);
-  util::endian::store(address, gsl::span(msg).subspan<2, 2>());
-  util::endian::store(value, gsl::span(msg).subspan<4, 4>());
-  fmt::print("sending: ");
-  utils::hexdump(msg);
-  std::flush(std::cout);
-
-  out_ep.bulk_write_all(msg);
-  std::array<uint8_t, 2> reply;
-  in_ep.bulk_read_all(reply, std::chrono::milliseconds(500));
-  utils::hexdump(reply);
-}
-
-static uint32_t readRegister(usb::out_endpoint &out_ep, usb::in_endpoint &in_ep,
-                             uint16_t address) {
-  std::array<uint8_t, 4> msg;
-  msg[0] = 0;
-  msg[1] = static_cast<uint8_t>(bus_master::cmd::read);
-  util::endian::store(address, gsl::span(msg).subspan<2, 2>());
-  /*fmt::print("sending: ");
-  utils::hexdump(msg);
-  std::flush(std::cout);*/
-  out_ep.bulk_write_all(msg);
-
-  std::array<uint8_t, 6> reply;
-  in_ep.bulk_read_all(reply, std::chrono::milliseconds(500));
-  /*fmt::print("received: ");
-  utils::hexdump(reply);*/
-  return util::endian::load<uint32_t>(gsl::span(reply).subspan<2, 4>());
-}
-
-static void knightrider_update(std::array<uint32_t, 10> &levels, int pos) {
-  constexpr auto factor = 0.6f;
-  for (auto &level : levels)
-    level = static_cast<uint32_t>(level * factor);
-  levels[pos] = 100;
-}
-
-#include <thread>
-static void knightrider(usb::out_endpoint &out_ep, usb::in_endpoint &in_ep,
-                        int milliseconds, int duration) {
-  writeRegister(out_ep, in_ep, peripherals::pwm0::conf, 0);
-  writeRegister(out_ep, in_ep, peripherals::pwm0::prescaler, 100);
-  writeRegister(out_ep, in_ep, peripherals::pwm0::max_cnt, 100);
-  for (auto level : peripherals::pwm0::level)
-    writeRegister(out_ep, in_ep, level, 0);
-  writeRegister(out_ep, in_ep, peripherals::pwm0::conf, 1);
-
-  std::array<uint32_t, 10> levels{0};
-  uint16_t pos = 0;
-  bool right = true;
-  do {
-    pos = right ? pos + 1 : pos - 1;
-
-    if (pos == 9) {
-      right = false;
-    } else if (pos == 0) {
-      right = true;
-    }
-
-    knightrider_update(levels, pos);
-
-    for (int i = 0; i < 10; i++)
-      writeRegister(out_ep, in_ep, peripherals::pwm0::level[i], levels[i]);
-    fmt::print("remaining: {}\n", duration);
-    std::flush(std::cout);
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
-  } while (duration--);
-}
-
-std::vector<uint8_t> randomBrightColor() {
-  return std::vector<uint8_t>{
-      (std::random_device()() & 1) != 0 ? (uint8_t)255 : (uint8_t)0,
-      (std::random_device()() & 1) != 0 ? (uint8_t)255 : (uint8_t)0,
-      (std::random_device()() & 1) != 0 ? (uint8_t)255 : (uint8_t)0};
-}
-
-static void writeRegisters(usb::out_endpoint &out_ep, usb::in_endpoint &in_ep,
-                           gsl::span<uint8_t, 3> values) {
-  static uint8_t source = 0;
-  std::array<uint8_t, 8 * 3> msg;
-  for (int i = 0; i < 3; i++) {
-    msg[i * 8] = source++;
-    msg[i * 8 + 1] = static_cast<uint8_t>(bus_master::cmd::write);
-    util::endian::store(
-        0x04 * (i + 1),
-        gsl::span<uint8_t, 8>(msg.data() + i * 8, 8).subspan<2, 2>());
-    util::endian::store(
-        values[i],
-        gsl::span<uint8_t, 8>(msg.data() + i * 8, 8).subspan<4, 4>());
-  }
-  /*fmt::print("sending: ");
-  utils::hexdump(msg);
-  std::flush(std::cout);*/
-
-  out_ep.bulk_write_all(msg);
-  std::array<uint8_t, 2 * 3> reply;
-  in_ep.bulk_read_all(reply, std::chrono::milliseconds(500));
-  //utils::hexdump(reply);
+std::vector<uint32_t> randomBrightColor() {
+  return std::vector<uint32_t>{
+      (std::random_device()() & 1) != 0 ? 255U : 0U,
+      (std::random_device()() & 1) != 0 ? 255U : 0U,
+      (std::random_device()() & 1) != 0 ? 255U : 0U};
 }
 
 template <class Rep, class Period>
-static void colorfade(usb::out_endpoint &out_ep, usb::in_endpoint &in_ep,
-                      std::chrono::duration<Rep, Period> rate, unsigned int duration,
-                      unsigned int fadespeed = 10) {
+static void colorfade(spinaltap::device &device,
+                      std::chrono::duration<Rep, Period> rate,
+                      unsigned int duration, unsigned int fadespeed = 10) {
   auto current_color = std::vector<uint8_t>{255, 255, 255};
-  writeRegisters(out_ep, in_ep, gsl::span<uint8_t, 3>(current_color));
+  auto current_regs = std::vector<std::pair<uint32_t, uint32_t>>{
+      {0x00, 0xff}, {0x04, 0xff}, {0x08, 0xff}};
+  device.writeRegisters(current_regs);
   auto next_color = randomBrightColor();
   do {
-    if (std::equal(begin(current_color), end(current_color), begin(next_color), end(next_color))) {
+    if (current_regs[0].second == next_color[0] &&
+        current_regs[1].second == next_color[1] &&
+        current_regs[2].second == next_color[2])
       next_color = randomBrightColor();
-    }
+
     for (size_t i = 0; i < 3; i++) {
-      if (current_color[i] == next_color[i])
+      if (current_regs[i].second == next_color[i])
         continue;
-      int delta = current_color[i] > next_color[i]
+      int delta = current_regs[i].second > next_color[i]
                       ? -static_cast<int>(fadespeed)
                       : static_cast<int>(fadespeed);
-      current_color[i] =
-          static_cast<uint8_t>(std::clamp(current_color[i] + delta, 0, 255));
+      current_regs[i].second = static_cast<uint8_t>(
+          std::clamp(current_regs[i].second + delta, 0U, 255U));
     }
-    writeRegisters(out_ep, in_ep, gsl::span<uint8_t, 3>(current_color));
+    device.writeRegisters(current_regs);
     std::this_thread::sleep_for(rate);
   } while (duration--);
 }
 
-static bool interactiveShell(usb::interface &intf, usb::in_endpoint &in_ep,
-                             usb::out_endpoint &out_ep) {
+static bool interactiveShell(spinaltap::device &device) {
   std::string cmdLine;
   fmt::print("> ");
   std::getline(std::cin, cmdLine);
@@ -455,13 +321,13 @@ static bool interactiveShell(usb::interface &intf, usb::in_endpoint &in_ep,
       return true;
     int address = to_int(pieces.at(1));
     int value = to_int(pieces.at(2));
-    writeRegister(out_ep, in_ep, address, value);
+    device.writeRegister(address, value);
     return true;
   } else if (pieces.at(0) == "read" || pieces.at(0) == "r") {
     if (pieces.size() != 2)
       return true;
     int address = to_int(pieces.at(1));
-    int value = readRegister(out_ep, in_ep, address);
+    int value = device.readRegister(address);
     fmt::print("0x{0:04x} = 0x{1:08x} ({1})\n", address, value);
     return true;
   } else if (pieces.at(0) == "colorfade") {
@@ -469,7 +335,7 @@ static bool interactiveShell(usb::interface &intf, usb::in_endpoint &in_ep,
       return true;
     int rate = to_int(pieces.at(1));
     int duration = to_int(pieces.at(2));
-    colorfade(out_ep, in_ep, std::chrono::milliseconds(rate), duration);
+    colorfade(device, std::chrono::milliseconds(rate), duration);
     return true;
   } else {
     fmt::print("invalid command\n");
