@@ -1,14 +1,19 @@
 #include "clipp.h"
-#include "fmt/core.h"
 #include "libusb++/libusb++.hpp"
+#include "libusb++/logging.hpp"
 #include "libusb++/utils.hpp"
 #include "numeric_utils.hpp"
 #include "random.hpp"
 #include "spinaltap.hpp"
 #include "ztexpp.hpp"
 
+#include "fmt/chrono.h"
+#include "fmt/core.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+
 #include "utils.hpp"
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <limits>
 #include <optional>
@@ -17,7 +22,6 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
-#include <cmath>
 
 using namespace numeric_utils;
 
@@ -77,6 +81,11 @@ int main(int argc, char *argv[]) {
        clipp::option("--interactive")
            .doc("Run interactive shell")
            .set(interactive));
+
+  auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+  console_sink->set_level(spdlog::level::debug);
+  usb::logging::logger->sinks().push_back(console_sink);
+  usb::logging::logger->set_level(spdlog::level::debug);
 
   try {
 
