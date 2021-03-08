@@ -1,14 +1,22 @@
 add_library(libusb++ "")
 target_sources(libusb++
-	PUBLIC
-		include/libusb++/libusb++.hpp
-		include/libusb++/utils.hpp
-		src/libusb++.cpp
-		src/utils.cpp
- "include/libusb++/error.hpp" "include/libusb++/helper.hpp" "include/libusb++/descriptors.hpp")
+    PRIVATE
+        src/libusb++.cpp
+        src/utils.cpp
+        include/libusb++/libusb++.hpp
+        include/libusb++/utils.hpp
+        include/libusb++/error.hpp
+        include/libusb++/helper.hpp
+        include/libusb++/descriptors.hpp
+        include/libusb++/logging.hpp
+)
 add_library(libusb++::libusb++ ALIAS libusb++)
 target_include_directories(libusb++ PUBLIC include)
-target_link_libraries(libusb++ PUBLIC fmt::fmt Microsoft.GSL::GSL)
+target_link_libraries(libusb++
+    PUBLIC
+        fmt::fmt
+        Microsoft.GSL::GSL
+        spdlog::spdlog)
 
 # on windows use self-built libusb, on linux use system one
 if(WIN32)

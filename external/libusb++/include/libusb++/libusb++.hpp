@@ -3,6 +3,7 @@
 #include "libusb++/descriptors.hpp"
 #include "libusb++/error.hpp"
 #include "libusb++/helper.hpp"
+#include "libusb++/logging.hpp"
 
 #include <chrono>
 #include <gsl/span>
@@ -181,8 +182,9 @@ public:
   }
   // TODO: not use helper and do own implementation for better error output
   // TODO: overload/default param with context
-  device_handle(uint16_t vendor_id, uint16_t product_id, usb::context& ctx)
-      : handle_(libusb_open_device_with_vid_pid(ctx.get(), vendor_id, product_id)) {
+  device_handle(uint16_t vendor_id, uint16_t product_id, usb::context &ctx)
+      : handle_(
+            libusb_open_device_with_vid_pid(ctx.get(), vendor_id, product_id)) {
     if (handle_ == nullptr)
       throw usb_error(errors::OTHER);
   }
@@ -334,6 +336,8 @@ public:
         &transferred, static_cast<unsigned int>(timeout.count()))};
     if (status != 0)
       throw usb_error(static_cast<errors>(status));
+    logging::logger->debug("TX: {:x}",
+                           spdlog::to_hex(data.begin(), data.end()));
     return transferred;
   }
 
@@ -359,6 +363,8 @@ public:
         static_cast<unsigned int>(timeout.count()))};
     if (status != 0)
       throw usb_error(static_cast<errors>(status));
+    logging::logger->debug("RX: {:x}",
+                           spdlog::to_hex(data.begin(), data.end()));
     return transferred;
   }
 
