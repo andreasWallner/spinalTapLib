@@ -3,7 +3,9 @@
 #include "libusb++/logging.hpp"
 #include "libusb++/utils.hpp"
 #include "numeric_utils.hpp"
+#include "pwm.hpp"
 #include "random.hpp"
+#include "registers.hpp"
 #include "spinaltap.hpp"
 #include "ztexpp.hpp"
 
@@ -276,40 +278,69 @@ int to_int(std::string num) {
   return val;
 }
 
-std::vector<uint32_t> randomBrightColor() {
-  return std::vector<uint32_t>{
-      (std::random_device()() & 1) != 0 ? 255U : 0U,
-      (std::random_device()() & 1) != 0 ? 255U : 0U,
-      (std::random_device()() & 1) != 0 ? 255U : 0U};
+std::array<uint8_t, 3> randomBrightColor() {
+  return {(std::random_device()() & 1) != 0 ? uint8_t(255) : uint8_t(0),
+          (std::random_device()() & 1) != 0 ? uint8_t(255) : uint8_t(0),
+          (std::random_device()() & 1) != 0 ? uint8_t(255) : uint8_t(0)};
 }
 
 template <class Rep, class Period>
-static void colorfade(spinaltap::device &device,
+static void colorfade(spinaltap::pwm &pwm,
                       std::chrono::duration<Rep, Period> rate,
                       unsigned int duration, unsigned int fadespeed = 10) {
   auto current_color = std::vector<uint8_t>{255, 255, 255};
-  auto current_regs = std::vector<std::pair<uint32_t, uint32_t>>{
-      {0x00, 0xff}, {0x04, 0xff}, {0x08, 0xff}};
-  device.writeRegisters(current_regs);
+  auto current_regs = std::array<uint8_t, 3>{0xff, 0xff, 0xff};
+
+  pwm.set_widths(current_regs);
+
   auto next_color = randomBrightColor();
   do {
-    if (current_regs[0].second == next_color[0] &&
-        current_regs[1].second == next_color[1] &&
-        current_regs[2].second == next_color[2])
+    if (current_regs[0] == next_color[0] && current_regs[1] == next_color[1] &&
+        current_regs[2] == next_color[2])
       next_color = randomBrightColor();
 
     for (size_t i = 0; i < 3; i++) {
-      if (current_regs[i].second == next_color[i])
+      if (current_regs[i] == next_color[i])
         continue;
-      int delta = current_regs[i].second > next_color[i]
-                      ? -static_cast<int>(fadespeed)
-                      : static_cast<int>(fadespeed);
-      current_regs[i].second = static_cast<uint8_t>(
-          std::clamp(current_regs[i].second + delta, 0U, 255U));
+      int delta = current_regs[i] > next_color[i] ? -static_cast<int>(fadespeed)
+                                                  : static_cast<int>(fadespeed);
+      current_regs[i] = static_cast<uint8_t>(
+          std::clamp(static_cast<int>(current_regs[i]) + delta, 0, 255));
     }
-    device.writeRegisters(current_regs);
+    pwm.set_widths(current_regs);
     std::this_thread::sleep_for(rate);
   } while (duration--);
+}
+
+static void perftest(spinaltap::device &device) {
+  constexpr size_t cnt = 100;
+
+  {
+    const auto before = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < cnt; i++) {
+      device.readRegister(spinaltap::registers::pwm::max_count);
+    }
+    const auto after = std::chrono::high_resolution_clock::now();
+    const auto duration = after - before;
+    using double_duration = std::chrono::duration<double>;
+    const double_duration dd = after - before;
+    fmt::print("{} reads in {} ms => {}ms / read\n", cnt,
+               std::chrono::duration_cast<std::chrono::milliseconds>(dd),
+               dd.count() / cnt);
+  }
+  {
+    const auto before = std::chrono::high_resolution_clock::now();
+    for (size_t i = 0; i < cnt; i++) {
+      device.writeRegister(spinaltap::registers::pwm::max_count, 0);
+    }
+    const auto after = std::chrono::high_resolution_clock::now();
+    const auto duration = after - before;
+    using double_duration = std::chrono::duration<double>;
+    const double_duration dd = after - before;
+    fmt::print("{} writes in {} ms => {}ms / write\n", cnt,
+               std::chrono::duration_cast<std::chrono::milliseconds>(dd),
+               dd.count() / cnt);
+  }
 }
 
 static bool interactiveShell(spinaltap::device &device) {
@@ -344,8 +375,11 @@ static bool interactiveShell(spinaltap::device &device) {
       return true;
     int rate = to_int(pieces.at(1));
     int duration = to_int(pieces.at(2));
-    colorfade(device, std::chrono::milliseconds(rate), duration);
+    auto pwm = spinaltap::pwm{device, 0};
+    colorfade(pwm, std::chrono::milliseconds(rate), duration);
     return true;
+  } else if (pieces.at(0) == "perftest") {
+    perftest(device);
   } else {
     fmt::print("invalid command\n");
     return true;

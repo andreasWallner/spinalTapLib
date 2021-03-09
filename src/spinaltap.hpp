@@ -5,14 +5,24 @@
 
 namespace spinaltap {
 
-enum class cmd : uint8_t { write = 0x01, read = 0x02, flush = 0xff };
+enum class cmd : uint8_t {
+  write = 0x01,
+  read = 0x02,
+  flush = 0xff,
+  writeStream8 = 0x03,
+  readStream8 = 0x04
+};
 class device {
 public:
   device(usb::out_endpoint &out_ep, usb::in_endpoint &in_ep);
 
   uint32_t readRegister(uint32_t address);
+  void readStream(uint32_t address, gsl::span<uint8_t> data);
+
   void writeRegister(uint32_t address, uint32_t value);
-  void writeRegisters(const std::vector<std::pair<uint32_t, uint32_t>> &toWrite);
+  void writeStream(uint32_t address, gsl::span<uint8_t> data);
+  void
+  writeRegisters(const std::vector<std::pair<uint32_t, uint32_t>> &toWrite);
 
 private:
   usb::out_endpoint &out_ep_;

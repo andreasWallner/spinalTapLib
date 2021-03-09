@@ -33,6 +33,10 @@ uint32_t device::readRegister(uint32_t address) {
   return endian::load<uint32_t>(gsl::span(reply).subspan<2, 4>());
 }
 
+void device::readStream(uint32_t address, gsl::span<uint8_t> data) {
+
+}
+
 void device::writeRegister(uint32_t address, uint32_t value) {
   std::array<uint8_t, 8> msg;
   make_write(msg, address, value);
@@ -40,6 +44,19 @@ void device::writeRegister(uint32_t address, uint32_t value) {
   out_ep_.bulk_write_all(msg);
   std::array<uint8_t, 2> reply;
   in_ep_.bulk_read_all(reply, std::chrono::milliseconds(500));
+}
+
+void device::writeStream(uint32_t address, gsl::span<uint8_t> data) {
+  std::vector<uint8_t> msg(4 + data.size());
+  msg[0] = 0;
+  msg[1] = static_cast<uint8_t>(cmd::writeStream8);
+  endian::store(static_cast<uint16_t>(address),
+                gsl::span<uint8_t, 2>(&msg[2], 2));
+  std::memcpy(&msg[4], data.data(), data.size());
+
+  out_ep_.bulk_write_all(msg);
+  gsl::span<uint8_t> rx_buffer{msg.data(), 2};
+  in_ep_.bulk_read_all(rx_buffer, std::chrono::milliseconds(500));
 }
 
 void device::writeRegisters(

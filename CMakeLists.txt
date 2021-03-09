@@ -16,7 +16,12 @@ find_package(Threads)
 add_subdirectory(external)
 
 add_executable(test_libusbpp "src/test_usb++.cpp" "src/ztexpp.cpp" "src/utils.cpp" "src/spinaltap.hpp" "src/spinaltap.cpp")
-target_link_libraries(test_libusbpp fmt::fmt clipp::clipp Microsoft.GSL::GSL libusb++::libusb++)
+target_link_libraries(test_libusbpp
+    fmt::fmt
+    clipp::clipp
+    Microsoft.GSL::GSL
+    libusb++::libusb++
+    spdlog::spglog)
 
 add_executable(torturetest
     "src/torturetest.main.cpp"
