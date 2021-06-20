@@ -9,7 +9,7 @@ target_sources(libusb++
         include/libusb++/helper.hpp
         include/libusb++/descriptors.hpp
         include/libusb++/logging.hpp
-)
+ "include/libusb++/device_filter.hpp" "src/device_filter.cpp")
 add_library(libusb++::libusb++ ALIAS libusb++)
 target_include_directories(libusb++ PUBLIC include)
 target_link_libraries(libusb++
