@@ -7,6 +7,7 @@ endif()
 
 #add_subdirectory(libztex)
 add_subdirectory(fmt EXCLUDE_FROM_ALL)
+set(SPDLOG_FMT_EXTERNAL ON CACHE BOOL "Use external fmt library instead of bundled")
 add_subdirectory(spdlog EXCLUDE_FROM_ALL)
 add_subdirectory(clipp EXCLUDE_FROM_ALL)
 add_subdirectory(GSL EXCLUDE_FROM_ALL)
