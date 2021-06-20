@@ -1,4 +1,5 @@
 #include "clipp.h"
+#include "libusb++/device_filter.hpp"
 #include "libusb++/libusb++.hpp"
 #include "libusb++/logging.hpp"
 #include "libusb++/utils.hpp"
@@ -32,9 +33,7 @@ static void readValueTest(usb::interface &intf, ztex::dev_info &info);
 static bool interactiveShell(spinaltap::device &device);
 
 int main(int argc, char *argv[]) {
-  using filter_predicate =
-      std::function<bool(const usb::device &, libusb_device_descriptor &)>;
-  std::vector<filter_predicate> filters;
+  usb::device_filter filter;
   bool tryStuff = false;
   bool verbose = false;
   bool download = false;
@@ -46,34 +45,21 @@ int main(int argc, char *argv[]) {
   auto cli =
       (clipp::option("-t").doc("Try stuff").set(tryStuff),
        clipp::option("-b").doc("Filter by bus ID") &
-           clipp::number("bus")([&](std::string_view s) {
-             filters.push_back(
-                 [=](const usb::device &d, libusb_device_descriptor &) {
-                   return d.bus_number() == as_integer<int, 10>(s);
-                 });
-           }),
+           clipp::number("bus")(
+               [&](std::string_view s) { filter.bus(as_integer<int, 10>(s)); }),
        clipp::option("-d").doc("Filter by device ID") &
            clipp::number("device")([&](std::string_view s) {
-             filters.push_back(
-                 [=](const usb::device &d, libusb_device_descriptor &) {
-                   return d.device_address() == as_integer<int, 10>(s);
-                 });
+             filter.device_address(as_integer<int, 10>(s));
            }),
        clipp::option("-v").doc("Filter by vendor ID") &
            clipp::value(is_number<uint16_t, 16>,
                         "vendor")([&](std::string_view s) {
-             filters.push_back(
-                 [=](const usb::device &, libusb_device_descriptor &dd) {
-                   return dd.idVendor == as_integer<uint16_t, 16>(s);
-                 });
+             filter.vendor_id(as_integer<uint16_t, 16>(s));
            }),
        clipp::option("-p").doc("Filter by product ID") &
            clipp::value(is_number<uint16_t, 16>,
                         "product")([&](std::string_view s) {
-             filters.push_back(
-                 [=](const usb::device &, libusb_device_descriptor &dd) {
-                   return dd.idProduct == as_integer<uint16_t, 16>(s);
-                 });
+             filter.product_id(as_integer<uint16_t, 16>(s));
            }),
        clipp::option("--verbose").doc("Print detail information").set(verbose),
        clipp::option("--download").doc("Try download").set(download) &
@@ -104,13 +90,7 @@ int main(int argc, char *argv[]) {
     usb_ctx.set_log_level(usb::log_level::none);
     {
       const usb::device_list list{usb_ctx};
-      std::vector<usb::device> matches;
-      std::copy_if(
-          list.begin(), list.end(), std::back_inserter(matches), [&](auto dev) {
-            auto dd = dev.device_descriptor();
-            return std::all_of(begin(filters), end(filters),
-                               [&](filter_predicate f) { return f(dev, dd); });
-          });
+      std::vector<usb::device> matches{filter.filter(list)};
       for (const auto &dev : matches) {
         if (!verbose)
           usb::utils::print_short(dev);
