@@ -92,7 +92,7 @@ template <typename T, int radix>
   return ok;
 }
 
-[[nodicard]] constexpr char flip_bits(char c) noexcept {
+[[nodiscard]] constexpr char flip_bits(char c) noexcept {
   c = (c & 0xF0) >> 4 | (c & 0x0F) << 4;
   c = (c & 0xCC) >> 2 | (c & 0x33) << 2;
   c = (c & 0xAA) >> 1 | (c & 0x55) << 1;

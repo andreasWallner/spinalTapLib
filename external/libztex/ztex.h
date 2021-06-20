@@ -39,7 +39,7 @@ extern "C" {
 #include <sys/types.h>
 #define NOMINMAX 
 #define VC_EXTRALEAN
-#include <libusb.h>
+#include <libusb-1.0/libusb.h>
 
 /// @cond macros
 /// Expands to the directory seperator of current OS

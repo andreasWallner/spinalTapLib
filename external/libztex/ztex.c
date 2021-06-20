@@ -69,7 +69,7 @@ Additional information can be found at
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
-#include <libusb.h>
+#include <libusb-1.0/libusb.h>
 #if defined(unix) || defined(_unix)
 #include <unistd.h>
 #endif

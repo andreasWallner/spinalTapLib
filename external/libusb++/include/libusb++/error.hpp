@@ -3,7 +3,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOCOMM
 #define NOMINMAX
-#include <libusb.h>
+#include <libusb-1.0/libusb.h>
 #undef NOMINMAX
 #undef NOCOMM
 #undef WIN32_LEAN_AND_MEAN

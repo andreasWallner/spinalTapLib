@@ -48,7 +48,7 @@ Full list of options can be obtained with '-h'
 
 #include <chrono>
 #include <fcntl.h>
-#include <libusb.h>
+#include <libusb-1.0/libusb.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>

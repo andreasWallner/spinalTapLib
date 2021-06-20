@@ -28,7 +28,7 @@ add_library(usb-1.0
 add_library(libusb::usb-1.0 ALIAS usb-1.0)
 if (DEFINED LIBUSB_LIBRARIES)
 	message("Linking shared library against ${LIBUSB_LIBRARIES}")
-	target_link_libraries(usb-1.0
+	target_link_libraries(usb-1.0 PUBLIC
 		${LIBUSB_LIBRARIES}
 	)
 endif()
@@ -55,12 +55,13 @@ if (WIN32 OR "${CMAKE_SYSTEM_NAME}" STREQUAL "CYGWIN")
 	endif()
 elseif (UNIX)
 	# Unix is for all *NIX systems including OSX
-	set(PLATFORM_LINUX 1 CACHE INTERNAL "controls config.h macro definition" FORCE)
+	set(PLATFORM_POSIX 1 CACHE INTERNAL "controls config.h macro definition" FORCE)
 
-	target_sources(usb-1.0
+	target_sources(usb-1.0 PUBLIC
 		libusb/libusb/os/linux_usbfs.c
 		libusb/libusb/os/threads_posix.c
 		libusb/libusb/os/events_posix.c
+		libusb/libusb/os/linux_netlink.c
 	)
 	target_link_libraries(usb-1.0 PUBLIC rt)
 else()

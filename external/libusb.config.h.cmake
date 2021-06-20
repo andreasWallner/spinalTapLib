@@ -24,7 +24,7 @@
 
 #define VERSION @PROJECT_VERSION@
 
-#cmakedefine PLATFORM_LINUX
+#cmakedefine PLATFORM_POSIX
 #cmakedefine PLATFORM_DARWIN
 #cmakedefine PLATFORM_WINDOWS
 #cmakedefine THREADS_POSIX

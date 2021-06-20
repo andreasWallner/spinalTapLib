@@ -21,15 +21,16 @@ if (CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
 		list(APPEND ADDITIONAL_CC_FLAGS -Wno-pointer-sign)
 	endif()
 
-	append_compiler_flags(
-		-std=gnu99
-		-Wall
-		-Wundef
-		-Wunused
-		-Wstrict-prototypes
-		-Werror-implicit-function-declaration
-		-Wshadow
-		${ADDITIONAL_CC_FLAGS}
+	target_compile_options(usb-1.0
+		PRIVATE
+			-std=gnu99
+			-Wall
+			-Wundef
+			-Wunused
+			-Wstrict-prototypes
+			-Werror-implicit-function-declaration
+			-Wshadow
+			${ADDITIONAL_CC_FLAGS}
 	)
 else(MSVC)
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS)

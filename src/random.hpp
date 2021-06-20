@@ -9,7 +9,7 @@ public:
   static constexpr int shift1 = a;
   static constexpr int shift2 = b;
   static constexpr int shift3 = c;
-  static constexpr result_type default_seed = 314159265;
+  static constexpr result_type default_seed = 4521U;
 
   xorshift_engine() : xorshift_engine(default_seed) {}
   xorshift_engine(result_type seed) : state_(seed) {}
