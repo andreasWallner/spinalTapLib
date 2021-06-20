@@ -1,5 +1,4 @@
 #include "spinaltap.hpp"
-#include "utils.hpp"
 
 #include <chrono>
 #include <cstdint>
@@ -33,8 +32,25 @@ uint32_t device::readRegister(uint32_t address) {
   return endian::load<uint32_t>(gsl::span(reply).subspan<2, 4>());
 }
 
-void device::readStream(uint32_t address, gsl::span<uint8_t> data) {
+void device::readStream(uint32_t address, gsl::span<std::byte> data) {
+  if (address >= std::numeric_limits<uint8_t>::max())
+    throw std::logic_error("impossible register address");
 
+  std::vector<uint8_t> msg;
+  msg.resize(data.size() * 4);
+  for (int i = 0; i < data.size(); i++) {
+    msg[i * 4 + 0] = 0;
+    msg[i * 4 + 1] = static_cast<uint8_t>(cmd::read);
+    endian::store(address, gsl::span<uint8_t, 2>(msg.data() + i * 4 + 2, 2));
+  }
+  out_ep_.bulk_write_all(msg);
+
+  std::vector<uint8_t> reply;
+  reply.resize(data.size() * 6);
+  in_ep_.bulk_read_all(reply, std::chrono::milliseconds(500));
+  for (int i = 0; i < data.size(); i++) {
+    data[i] = static_cast<std::byte>(reply[i * 6 + 5]);
+  }
 }
 
 void device::writeRegister(uint32_t address, uint32_t value) {
@@ -46,7 +62,7 @@ void device::writeRegister(uint32_t address, uint32_t value) {
   in_ep_.bulk_read_all(reply, std::chrono::milliseconds(500));
 }
 
-void device::writeStream(uint32_t address, gsl::span<uint8_t> data) {
+void device::writeStream(uint32_t address, gsl::span<std::byte> data) {
   std::vector<uint8_t> msg(4 + data.size());
   msg[0] = 0;
   msg[1] = static_cast<uint8_t>(cmd::writeStream8);
@@ -71,6 +87,12 @@ void device::writeRegisters(
 
   msg.resize(toWrite.size() * 2);
   in_ep_.bulk_read_all(msg, std::chrono::milliseconds(500));
+}
+
+// TODO make this a command
+void device::readModifyWrite(uint32_t address, uint32_t mask, uint32_t value) {
+  uint32_t old = readRegister(address);
+  writeRegister(address, (old & ~mask) | value);
 }
 
 namespace endian {

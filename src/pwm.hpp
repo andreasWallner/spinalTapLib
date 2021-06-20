@@ -12,15 +12,16 @@ private:
   uint32_t baseAddress_;
 
 public:
-  constexpr static unsigned long frequency_ = 100'000'000UL;
+  constexpr static std::chrono::duration<std::chrono::system_clock::rep, std::ratio<1, 100'000'000>>
+      clock_period_{1};
 
   pwm(device &device, uint32_t baseAddress)
       : device_(device), baseAddress_(baseAddress) {}
 
   uint32_t max_count() const;
   void set_max_count(uint32_t d);
-  template<class _Rep, class _Period=std::ratio<1i64>>
-  void set_period(std::chrono::duration<_Rep, _Period> period);
+  template<class _Rep, class _Period>
+  std::chrono::duration<_Rep, _Period> set_period(std::chrono::duration<_Rep, _Period> period, uint32_t max_count);
 
   uint8_t width(uint8_t idx) const;
   void set_width(uint8_t idx, uint8_t w);
@@ -30,8 +31,9 @@ public:
 };
 
 template <class _Rep, class _Period>
-inline void pwm::set_period(std::chrono::duration<_Rep, _Period> period) {
-  // TODO
+inline std::chrono::duration<_Rep, _Period> pwm::set_period(std::chrono::duration<_Rep, _Period> period, uint32_t max_count) {
+  auto clocks = period / clock_period_;
+  // TODO after HW module changes... (add pre-divider)
 }
 
 } // namespace spinaltap

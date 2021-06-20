@@ -17,12 +17,14 @@ public:
   device(usb::out_endpoint &out_ep, usb::in_endpoint &in_ep);
 
   uint32_t readRegister(uint32_t address);
-  void readStream(uint32_t address, gsl::span<uint8_t> data);
+  void readStream(uint32_t address, gsl::span<std::byte> data);
 
   void writeRegister(uint32_t address, uint32_t value);
-  void writeStream(uint32_t address, gsl::span<uint8_t> data);
+  void writeStream(uint32_t address, gsl::span<std::byte> data);
   void
   writeRegisters(const std::vector<std::pair<uint32_t, uint32_t>> &toWrite);
+
+  void readModifyWrite(uint32_t address, uint32_t mask, uint32_t value);
 
 private:
   usb::out_endpoint &out_ep_;

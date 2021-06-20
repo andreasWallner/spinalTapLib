@@ -10,5 +10,6 @@ constexpr uint32_t pwm1 = 0x08U;
 constexpr uint32_t pwm2 = 0x0CU;
 
 } // namespace pwm
+
 } // namespace registers
 } // namespace spinaltap
