@@ -4,9 +4,9 @@
 #include "libusb++/logging.hpp"
 #include "libusb++/utils.hpp"
 #include "numeric_utils.hpp"
-#include "pwm.hpp"
+#include "spinaltap/pwm/pwm.hpp"
+#include "spinaltap/pwm/registers.hpp"
 #include "random.hpp"
-#include "registers.hpp"
 #include "spinaltap.hpp"
 #include "ztexpp.hpp"
 
@@ -265,7 +265,7 @@ std::array<uint8_t, 3> randomBrightColor() {
 }
 
 template <class Rep, class Period>
-static void colorfade(spinaltap::pwm &pwm,
+static void colorfade(spinaltap::pwm::pwm &pwm,
                       std::chrono::duration<Rep, Period> rate,
                       unsigned int duration, unsigned int fadespeed = 10) {
   auto current_color = std::vector<uint8_t>{255, 255, 255};
@@ -298,7 +298,7 @@ static void perftest(spinaltap::device &device) {
   {
     const auto before = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < cnt; i++) {
-      device.readRegister(spinaltap::registers::pwm::max_count);
+      device.readRegister(spinaltap::pwm::registers::max);
     }
     const auto after = std::chrono::high_resolution_clock::now();
     const auto duration = after - before;
@@ -311,7 +311,7 @@ static void perftest(spinaltap::device &device) {
   {
     const auto before = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < cnt; i++) {
-      device.writeRegister(spinaltap::registers::pwm::max_count, 0);
+      device.writeRegister(spinaltap::pwm::registers::max, 0);
     }
     const auto after = std::chrono::high_resolution_clock::now();
     const auto duration = after - before;
@@ -355,7 +355,7 @@ static bool interactiveShell(spinaltap::device &device) {
       return true;
     int rate = to_int(pieces.at(1));
     int duration = to_int(pieces.at(2));
-    auto pwm = spinaltap::pwm{device, 0};
+    auto pwm = spinaltap::pwm::pwm{device, 0};
     colorfade(pwm, std::chrono::milliseconds(rate), duration);
     return true;
   } else if (pieces.at(0) == "perftest") {

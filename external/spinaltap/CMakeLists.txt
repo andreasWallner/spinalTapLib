@@ -8,9 +8,13 @@ target_sources(spinaltap
         include/spinaltap/logging.hpp
         include/spinaltap/iso7816/iso7816.hpp
         include/spinaltap/iso7816/registers.hpp
+
+        include/spinaltap/pwm/pwm.hpp
+        include/spinaltap/pwm/registers.hpp
     PRIVATE
         src/iso7816.cpp
         src/spinaltap.cpp
+        src/pwm.cpp
 )
 
 target_link_libraries(spinaltap

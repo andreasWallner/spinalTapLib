@@ -4,7 +4,7 @@
 
 #include <chrono>
 
-namespace spinaltap {
+namespace spinaltap::pwm {
 
 class pwm {
 private:
@@ -20,7 +20,10 @@ public:
 
   uint32_t max_count() const;
   void set_max_count(uint32_t d);
-  template<class _Rep, class _Period>
+  uint32_t prescaler() const;
+  void set_prescaler(uint32_t pre);
+
+  template <class _Rep, class _Period>
   std::chrono::duration<_Rep, _Period> set_period(std::chrono::duration<_Rep, _Period> period, uint32_t max_count);
 
   uint8_t width(uint8_t idx) const;
@@ -28,6 +31,9 @@ public:
 
   std::array<uint8_t, 3> widths() const;
   void set_widths(gsl::span<uint8_t, 3> w);
+
+private:
+  uint32_t idx_to_address(int idx) const;
 };
 
 template <class _Rep, class _Period>
