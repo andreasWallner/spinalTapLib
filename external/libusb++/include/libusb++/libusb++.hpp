@@ -17,7 +17,11 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOCOMM
 #define NOMINMAX
+#if __has_include("libusb.h")
+#include <libusb.h>
+#else
 #include <libusb-1.0/libusb.h>
+#endif
 #undef NOMINMAX
 #undef NOCOMM
 #undef WIN32_LEAN_AND_MEAN
