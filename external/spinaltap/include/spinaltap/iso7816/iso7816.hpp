@@ -6,7 +6,7 @@
 #include <optional>
 #include <vector>
 
-#include "GSL/gsl"
+#include "gsl/gsl"
 
 #include "spinaltap.hpp"
 

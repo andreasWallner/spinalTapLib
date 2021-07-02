@@ -148,7 +148,7 @@ template <std::size_t N>
 std::array<std::byte, N>
 master::receive(duration timeout /* = std::chrono::seconds(1) */) {
   std::array<std::byte, N> ret;
-  (void)receive(ret, duration);
+  (void)receive(ret, timeout);
   return ret;
   // TODO what to do in error case
 }
