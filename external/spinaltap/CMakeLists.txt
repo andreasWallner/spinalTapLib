@@ -11,10 +11,14 @@ target_sources(spinaltap
 
         include/spinaltap/pwm/pwm.hpp
         include/spinaltap/pwm/registers.hpp
+
+        include/spinaltap/iomux/registers.hpp
+        include/spinaltap/iomux/iomux.hpp
     PRIVATE
         src/iso7816.cpp
         src/spinaltap.cpp
         src/pwm.cpp
+        src/iomux.cpp
 )
 
 target_link_libraries(spinaltap
