@@ -14,11 +14,15 @@ target_sources(spinaltap
 
         include/spinaltap/iomux/registers.hpp
         include/spinaltap/iomux/iomux.hpp
+
+        include/spinaltap/gpio/gpio.hpp
+        include/spinaltap/gpio/registers.hpp
     PRIVATE
         src/iso7816.cpp
         src/spinaltap.cpp
         src/pwm.cpp
         src/iomux.cpp
+        src/gpio.cpp
 )
 
 target_link_libraries(spinaltap
