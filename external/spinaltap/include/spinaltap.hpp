@@ -1,7 +1,15 @@
-#pragma once
+#ifndef spinaltap_spinaltap_h
+#define spinaltap_spinaltap_h
 
-#include "libusb++/libusb++.hpp"
+#include "gsl/gsl"
+#include <cstdint>
 #include <filesystem>
+
+namespace usb {
+class out_endpoint;
+class in_endpoint;
+class interface;
+} // namespace usb
 
 namespace spinaltap {
 
@@ -49,3 +57,5 @@ void load_bitstream(const usb::interface &intf,
                     const std::filesystem::path &location);
 }
 } // namespace spinaltap
+
+#endif
