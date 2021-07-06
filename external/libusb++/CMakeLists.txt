@@ -16,7 +16,8 @@ target_link_libraries(libusb++
     PUBLIC
         fmt::fmt
         Microsoft.GSL::GSL
-        spdlog::spdlog)
+        spdlog::spdlog
+)
 
 # on windows use self-built libusb, on linux use system one
 if(WIN32)

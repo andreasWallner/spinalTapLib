@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 namespace spinaltap::iso7816::registers {
 
 constexpr uint32_t frequency = 0x00U;

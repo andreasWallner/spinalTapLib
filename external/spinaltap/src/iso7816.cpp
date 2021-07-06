@@ -1,6 +1,8 @@
 #include "spinaltap/iso7816/iso7816.hpp"
 #include "spinaltap/iso7816/registers.hpp"
 
+#include <cmath>
+
 namespace spinaltap::iso7816 {
 
 master::frequency master::module_clock_frequency() const { return clock_freq_; }
