@@ -4,10 +4,13 @@
 #include "libusb++/logging.hpp"
 #include "libusb++/utils.hpp"
 #include "numeric_utils.hpp"
-#include "spinaltap/pwm/pwm.hpp"
-#include "spinaltap/pwm/registers.hpp"
 #include "random.hpp"
 #include "spinaltap.hpp"
+#include "spinaltap/gpio/gpio.hpp"
+#include "spinaltap/iomux/iomux.hpp"
+#include "spinaltap/logging.hpp"
+#include "spinaltap/pwm/pwm.hpp"
+#include "spinaltap/pwm/registers.hpp"
 #include "ztexpp.hpp"
 
 #include "fmt/chrono.h"
@@ -73,7 +76,9 @@ int main(int argc, char *argv[]) {
   auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
   console_sink->set_level(spdlog::level::debug);
   usb::logging::logger->sinks().push_back(console_sink);
-  usb::logging::logger->set_level(spdlog::level::debug);
+  // usb::logging::logger->set_level(spdlog::level::debug);
+  spinaltap::logging::logger->sinks().push_back(console_sink);
+  spinaltap::logging::logger->set_level(spdlog::level::debug);
 
   try {
 
@@ -292,6 +297,48 @@ static void colorfade(spinaltap::pwm::pwm &pwm,
   } while (duration--);
 }
 
+namespace module_base {
+constexpr uint32_t pwm = 0x0000;
+constexpr uint32_t gpio0 = 0x0100;
+constexpr uint32_t gpio1 = 0x0200;
+constexpr uint32_t mux = 0x0300;
+constexpr uint32_t iso7816 = 0x0400;
+constexpr uint32_t spi = 0x050;
+} // namespace module_base
+
+namespace mux_input {
+constexpr uint32_t none = 0;
+constexpr uint32_t gpio0 = 1;
+constexpr uint32_t gpio1 = 2;
+constexpr uint32_t iso7816 = 3;
+constexpr uint32_t spi = 4;
+}; // namespace mux_input
+
+static void iotest(spinaltap::device &device) {
+  spinaltap::iomux::iomux mux(device, module_base::mux);
+  spinaltap::gpio::gpio gpio0(device, module_base::gpio0);
+  spinaltap::gpio::gpio gpio1(device, module_base::gpio1);
+
+  mux.connect(mux_input::gpio0, 0);
+  mux.connect(mux_input::gpio1, 1);
+
+  gpio0.set_write(0x00);
+  gpio0.set_write_enable(0xff);
+  gpio1.set_write(0x00);
+  gpio1.set_write_enable(0xff);
+
+  gpio0.set_write(0x01);
+  gpio0.set_write(0x00);
+  gpio0.set_write(0xff);
+  fmt::print("{}", gpio0.write());
+  gpio0.set_write(0x00);
+
+  gpio1.set_write(0x01);
+  gpio1.set_write(0x00);
+  gpio1.set_write(0xff);
+  gpio1.set_write(0x00);
+}
+
 static void perftest(spinaltap::device &device) {
   constexpr size_t cnt = 100;
 
@@ -342,14 +389,12 @@ static bool interactiveShell(spinaltap::device &device) {
     int address = to_int(pieces.at(1));
     int value = to_int(pieces.at(2));
     device.writeRegister(address, value);
-    return true;
   } else if (pieces.at(0) == "read" || pieces.at(0) == "r") {
     if (pieces.size() != 2)
       return true;
     int address = to_int(pieces.at(1));
     int value = device.readRegister(address);
     fmt::print("0x{0:04x} = 0x{1:08x} ({1})\n", address, value);
-    return true;
   } else if (pieces.at(0) == "colorfade") {
     if (pieces.size() != 3)
       return true;
@@ -357,11 +402,13 @@ static bool interactiveShell(spinaltap::device &device) {
     int duration = to_int(pieces.at(2));
     auto pwm = spinaltap::pwm::pwm{device, 0};
     colorfade(pwm, std::chrono::milliseconds(rate), duration);
-    return true;
+  } else if (pieces.at(0) == "iotest") {
+    iotest(device);
   } else if (pieces.at(0) == "perftest") {
     perftest(device);
   } else {
     fmt::print("invalid command\n");
-    return true;
   }
+
+  return true;
 }
