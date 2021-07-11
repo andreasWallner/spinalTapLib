@@ -340,7 +340,7 @@ public:
         &transferred, static_cast<unsigned int>(timeout.count()))};
     if (status != 0)
       throw usb_error(static_cast<errors>(status));
-    logging::logger->debug("TX: {:x}",
+    logging::logger->debug("TX: {:n}",
                            spdlog::to_hex(data.begin(), data.end()));
     return transferred;
   }
@@ -367,7 +367,7 @@ public:
         static_cast<unsigned int>(timeout.count()))};
     if (status != 0)
       throw usb_error(static_cast<errors>(status));
-    logging::logger->debug("RX: {:x}",
+    logging::logger->debug("RX: {:n}",
                            spdlog::to_hex(data.begin(), data.end()));
     return transferred;
   }
