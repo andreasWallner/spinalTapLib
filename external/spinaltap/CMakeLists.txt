@@ -5,7 +5,9 @@ target_include_directories(spinaltap PUBLIC include)
 target_sources(spinaltap
     PUBLIC
         include/spinaltap.hpp
+        include/spinaltap/util.hpp
         include/spinaltap/logging.hpp
+        
         include/spinaltap/iso7816/iso7816.hpp
         include/spinaltap/iso7816/registers.hpp
 
@@ -21,6 +23,7 @@ target_sources(spinaltap
         include/spinaltap/spi/spi.hpp
         include/spinaltap/spi/registers.hpp
     PRIVATE
+        src/util.cpp
         src/iso7816.cpp
         src/spinaltap.cpp
         src/pwm.cpp

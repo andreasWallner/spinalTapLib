@@ -27,7 +27,9 @@ constexpr uint32_t occupancy_tx_msk = 0xff00U;
 
 constexpr uint32_t config = 0x0018U;
 constexpr uint32_t config_cpha = 0x0001U;
+constexpr uint32_t config_cpha_pos = 1;
 constexpr uint32_t config_cpol = 0x0002U;
+constexpr uint32_t config_cpol_pos = 2;
 constexpr uint32_t config_prescaler_pos = 2;
 constexpr uint32_t config_prescaler_msk = 0xfffcU;
 

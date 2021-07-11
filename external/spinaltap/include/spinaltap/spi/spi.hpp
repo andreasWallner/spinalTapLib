@@ -13,12 +13,26 @@ class master {
 private:
   device &device_;
   uint32_t base_address_;
+  uint32_t module_frequency_;
+  int divider_width_;
 
 public:
-  master(device &device, uint32_t base_address)
-      : device_(device), base_address_(base_address) {}
+  master(device &device, uint32_t base_address);
 
-  void configure(cpol pol, cpha pha, double frequency);
+  double configure(cpol pol, cpha pha, double frequency);
+  void set_polarity(cpol pol);
+  cpol polarity() const;
+  void set_phase(cpha pha);
+  cpha phase() const;
+  double set_frequency(double frequency);
+  double frequency() const;
+
+  // inter-byte-wait
+  // CS & CS wait
+
+  void transceive(gsl::span<const uint8_t> tx, gsl::span<uint8_t> rx);
+  void send(gsl::span<const uint8_t> tx);
+  void recv(gsl::span<uint8_t> rx);
 };
 
 } // namespace spinaltap::spi
