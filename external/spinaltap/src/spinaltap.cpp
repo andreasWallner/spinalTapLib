@@ -1,5 +1,6 @@
 #include "spinaltap.hpp"
 #include "spinaltap/logging.hpp"
+#include "spinaltap/util.hpp"
 
 #include "libusb++/libusb++.hpp"
 #include <chrono>
@@ -12,7 +13,7 @@ void make_write(gsl::span<uint8_t, 8> dest, uint32_t address, uint32_t value) {
   if (address >= std::numeric_limits<uint16_t>::max())
     throw std::logic_error("impossible register address");
 
-  dest[0] = 0;
+  dest[0] = ctr++;
   dest[1] = static_cast<uint8_t>(cmd::write);
   endian::store(static_cast<uint16_t>(address), dest.subspan<2, 2>());
   endian::store(value, dest.subspan<4, 4>());
@@ -27,7 +28,7 @@ uint32_t device::readRegister(uint32_t address) {
     throw std::logic_error("impossible register address");
 
   std::array<uint8_t, 4> msg;
-  msg[0] = 0;
+  msg[0] = ctr++;
   msg[1] = static_cast<uint8_t>(cmd::read);
   endian::store(static_cast<uint16_t>(address), gsl::span(msg).subspan<2, 2>());
   out_ep_.bulk_write_all(msg);
@@ -39,26 +40,26 @@ uint32_t device::readRegister(uint32_t address) {
   logging::logger->debug("read @{:04x}={:04x}", address, result);
   return result;
 }
-
+// TODO read all
 void device::readStream(uint32_t address, gsl::span<std::byte> data) {
-  if (address >= std::numeric_limits<uint8_t>::max())
+  if (address >= std::numeric_limits<uint16_t>::max())
     throw std::logic_error("impossible register address");
 
-  std::vector<uint8_t> msg;
-  msg.resize(data.size() * 4);
-  for (int i = 0; i < data.size(); i++) {
-    msg[i * 4 + 0] = 0;
-    msg[i * 4 + 1] = static_cast<uint8_t>(cmd::read);
-    endian::store(address, gsl::span<uint8_t, 2>(msg.data() + i * 4 + 2, 2));
-  }
+  std::array<uint8_t, 6> msg;
+  msg[0] = ctr++;
+  msg[1] = static_cast<uint8_t>(cmd::readStream8);
+  endian::store(static_cast<uint16_t>(address), gsl::span(msg).subspan<2, 2>());
+  endian::store(static_cast<uint16_t>(data.size()),
+                gsl::span(msg).subspan<4, 2>());
+
   out_ep_.bulk_write_all(msg);
 
-  std::vector<uint8_t> reply;
-  reply.resize(data.size() * 6);
-  in_ep_.bulk_read_all(reply, std::chrono::milliseconds(500));
-  for (int i = 0; i < data.size(); i++) {
-    data[i] = static_cast<std::byte>(reply[i * 6 + 5]);
-  }
+  // do not try to optimize here by receiving into split buffers,
+  // the OS will not do any receive buffering for us, we have
+  // to read the whole packet that will be sent at once
+  std::vector<uint8_t> buffer(data.size() + 2, 0);
+  in_ep_.bulk_read_all(buffer, std::chrono::milliseconds(500));
+  util::copy(data, gsl::as_bytes(gsl::span(buffer).subspan(2)));
 }
 
 void device::writeRegister(uint32_t address, uint32_t value) {
