@@ -4,8 +4,10 @@
 #include "libusb++/libusb++.hpp"
 #include <chrono>
 #include <cstdint>
+#include <thread>
 
 namespace spinaltap {
+uint8_t ctr = 0;
 void make_write(gsl::span<uint8_t, 8> dest, uint32_t address, uint32_t value) {
   if (address >= std::numeric_limits<uint16_t>::max())
     throw std::logic_error("impossible register address");
@@ -100,6 +102,18 @@ void device::writeRegisters(
 void device::readModifyWrite(uint32_t address, uint32_t mask, uint32_t value) {
   uint32_t old = readRegister(address);
   writeRegister(address, (old & ~mask) | value);
+}
+
+bool device::poll(uint32_t address, uint32_t mask, uint32_t expected,
+                  std::chrono::milliseconds timeout) {
+  auto limit = std::chrono::system_clock::now() + timeout;
+  while (std::chrono::system_clock::now() <= limit) {
+    auto reg = readRegister(address);
+    if ((reg & mask) == expected)
+      return true;
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+  }
+  return false;
 }
 
 namespace endian {

@@ -33,6 +33,9 @@ public:
   writeRegisters(const std::vector<std::pair<uint32_t, uint32_t>> &toWrite);
 
   void readModifyWrite(uint32_t address, uint32_t mask, uint32_t value);
+  [[nodiscard]] bool
+  poll(uint32_t address, uint32_t mask, uint32_t expected,
+       std::chrono::milliseconds timeout = std::chrono::milliseconds(1000));
 
 private:
   usb::out_endpoint &out_ep_;
