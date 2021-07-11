@@ -28,7 +28,7 @@ public:
   void readStream(uint32_t address, gsl::span<std::byte> data);
 
   void writeRegister(uint32_t address, uint32_t value);
-  void writeStream(uint32_t address, gsl::span<std::byte> data);
+  void writeStream(uint32_t address, gsl::span<const std::byte> data);
   void
   writeRegisters(const std::vector<std::pair<uint32_t, uint32_t>> &toWrite);
 

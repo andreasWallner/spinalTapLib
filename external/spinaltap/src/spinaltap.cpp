@@ -71,13 +71,18 @@ void device::writeRegister(uint32_t address, uint32_t value) {
   in_ep_.bulk_read_all(reply, std::chrono::milliseconds(500));
 }
 
-void device::writeStream(uint32_t address, gsl::span<std::byte> data) {
-  std::vector<uint8_t> msg(4 + data.size());
-  msg[0] = 0;
+void device::writeStream(uint32_t address, gsl::span<const std::byte> data) {
+  logging::logger->debug("write @{:04x}={:n}", address,
+                         spdlog::to_hex(data.begin(), data.end()));
+
+  std::vector<uint8_t> msg(6 + data.size());
+  msg[0] = ctr++;
   msg[1] = static_cast<uint8_t>(cmd::writeStream8);
   endian::store(static_cast<uint16_t>(address),
                 gsl::span<uint8_t, 2>(&msg[2], 2));
-  std::memcpy(&msg[4], data.data(), data.size());
+  endian::store(static_cast<uint16_t>(data.size()),
+                gsl::span<uint8_t, 2>(&msg[4], 2));
+  std::memcpy(&msg[6], data.data(), data.size());
 
   out_ep_.bulk_write_all(msg);
   gsl::span<uint8_t> rx_buffer{msg.data(), 2};
