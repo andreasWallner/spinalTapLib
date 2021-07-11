@@ -11,6 +11,7 @@
 #include "spinaltap/logging.hpp"
 #include "spinaltap/pwm/pwm.hpp"
 #include "spinaltap/pwm/registers.hpp"
+#include "spinaltap/spi/spi.hpp"
 #include "ztexpp.hpp"
 
 #include "fmt/chrono.h"
@@ -38,13 +39,15 @@ static bool interactiveShell(spinaltap::device &device);
 int main(int argc, char *argv[]) {
   usb::device_filter filter;
   bool tryStuff = false;
-  bool verbose = false;
+  bool verbose = true;
   bool download = false;
   bool test_txrx = false;
   bool test_rx = false;
-  bool interactive = false;
+  bool interactive = true;
   std::string bitstream;
 
+  // for easier debugging
+  filter.product_id(1337);
   auto cli =
       (clipp::option("-t").doc("Try stuff").set(tryStuff),
        clipp::option("-b").doc("Filter by bus ID") &
@@ -76,7 +79,7 @@ int main(int argc, char *argv[]) {
   auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
   console_sink->set_level(spdlog::level::debug);
   usb::logging::logger->sinks().push_back(console_sink);
-  // usb::logging::logger->set_level(spdlog::level::debug);
+  usb::logging::logger->set_level(spdlog::level::debug);
   spinaltap::logging::logger->sinks().push_back(console_sink);
   spinaltap::logging::logger->set_level(spdlog::level::debug);
 
@@ -92,7 +95,7 @@ int main(int argc, char *argv[]) {
     }
 
     usb::context usb_ctx;
-    usb_ctx.set_log_level(usb::log_level::none);
+    usb_ctx.set_log_level(usb::log_level::info);
     {
       const usb::device_list list{usb_ctx};
       std::vector<usb::device> matches{filter.filter(list)};
@@ -303,7 +306,7 @@ constexpr uint32_t gpio0 = 0x0100;
 constexpr uint32_t gpio1 = 0x0200;
 constexpr uint32_t mux = 0x0300;
 constexpr uint32_t iso7816 = 0x0400;
-constexpr uint32_t spi = 0x050;
+constexpr uint32_t spi = 0x500;
 } // namespace module_base
 
 namespace mux_input {
@@ -337,6 +340,18 @@ static void iotest(spinaltap::device &device) {
   gpio1.set_write(0x00);
   gpio1.set_write(0xff);
   gpio1.set_write(0x00);
+}
+
+static void spitest(spinaltap::device &device) {
+  spinaltap::iomux::iomux mux(device, module_base::mux);
+  spinaltap::spi::master spi(device, module_base::spi);
+
+  mux.connect(mux_input::spi, 0);
+  spi.configure(spinaltap::spi::cpol::idle_high,
+                spinaltap::spi::cpha::first_edge_latches, 1.0e3);
+
+  std::vector<uint8_t> buffer = {0x55, 0xff, 0x10, 0x01, 0x80};
+  spi.transceive(buffer, buffer);
 }
 
 static void perftest(spinaltap::device &device) {
@@ -404,6 +419,8 @@ static bool interactiveShell(spinaltap::device &device) {
     colorfade(pwm, std::chrono::milliseconds(rate), duration);
   } else if (pieces.at(0) == "iotest") {
     iotest(device);
+  } else if (pieces.at(0) == "spitest") {
+    spitest(device);
   } else if (pieces.at(0) == "perftest") {
     perftest(device);
   } else {
