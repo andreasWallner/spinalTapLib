@@ -8,6 +8,7 @@ namespace spinaltap::spi {
 
 enum class cpol { idle_low = 0, idle_high = 1 };
 enum class cpha { first_edge_shifts = 0, first_edge_latches = 1 };
+enum class ss_action { noop, assert, deassert, both};
 
 class master {
 private:
@@ -27,12 +28,20 @@ public:
   double set_frequency(double frequency);
   double frequency() const;
 
-  // inter-byte-wait
-  // CS & CS wait
+  uint8_t word_guard_clocks() const;
+  void set_word_guard_clocks(uint8_t clocks);
+  uint8_t ss_assert_guard_clocks() const;
+  void set_ss_assert_guard_clocks(uint8_t clocks);
+  uint8_t ss_deassert_guard_clocks() const;
+  void set_ss_deassert_guard_clocks(uint8_t clocks);
 
-  void transceive(gsl::span<const uint8_t> tx, gsl::span<uint8_t> rx);
-  void send(gsl::span<const uint8_t> tx);
-  void recv(gsl::span<uint8_t> rx);
+  void transceive(gsl::span<const uint8_t> tx, gsl::span<uint8_t> rx, ss_action ss = ss_action::noop);
+  void send(gsl::span<const uint8_t> tx, ss_action ss = ss_action::noop);
+  void recv(gsl::span<uint8_t> rx, ss_action ss = ss_action::noop);
+  void ss(ss_action action);
+
+private:
+  void raw_transceive(gsl::span<const uint8_t> tx, gsl::span<uint8_t> rx, ss_action ss);
 };
 
 } // namespace spinaltap::spi
