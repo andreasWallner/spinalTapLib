@@ -144,7 +144,7 @@ void master::transceive(gsl::span<const uint8_t> tx, gsl::span<uint8_t> rx,
                          spdlog::to_hex(rx.begin(), rx.end()));
 }
 
-void master::send(gsl::span<const uint8_t> tx, ss_action ss = ss_action::noop) {
+void master::send(gsl::span<const uint8_t> tx, ss_action ss) {
   logging::logger->debug("SPI txrx: > {:n}",
                          spdlog::to_hex(tx.begin(), tx.end()));
 
@@ -155,7 +155,7 @@ void master::send(gsl::span<const uint8_t> tx, ss_action ss = ss_action::noop) {
   device_.poll(base_address_ + registers::status, registers::status_busy, 0);
 }
 
-void master::recv(gsl::span<uint8_t> rx, ss_action ss = ss_action::noop) {
+void master::recv(gsl::span<uint8_t> rx, ss_action ss) {
   logging::logger->debug("SPI rx {} bytes", rx.size());
 
   std::vector<uint8_t> dummy(0, rx.size());
