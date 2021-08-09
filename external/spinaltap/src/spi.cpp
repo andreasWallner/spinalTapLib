@@ -161,7 +161,7 @@ void master::recv(gsl::span<uint8_t> rx, ss_action ss) {
   std::vector<uint8_t> dummy(0, rx.size());
   transceive(dummy, rx, ss);
 
-  logging::logger->debug("SPI rx: < {:n}")
+  logging::logger->debug("SPI rx: < {:n}");
 }
 
 void master::raw_transceive(gsl::span<const uint8_t> tx, gsl::span<uint8_t> rx,
