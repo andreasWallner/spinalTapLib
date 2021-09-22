@@ -90,8 +90,5 @@ set(PACKAGE_STRING "${PACKAGE} ${PROJECT_VERSION}" CACHE INTERNAL "package strin
 set(PACKAGE_URL "http://www.libusb.org" CACHE INTERNAL "package url" FORCE)
 set(PACKAGE_TARNAME "libusb" CACHE INTERNAL "tarball name" FORCE)
 
-configure_file(libusb.config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/config.h @ONLY)
+configure_file(libusb.config.h.cmake ${libusb_BINARY_DIR}/config.h @ONLY)
 message(STATUS "Generated configuration file in ${CMAKE_CURRENT_BINARY_DIR}/config.h")
-
-# for generated config.h
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
