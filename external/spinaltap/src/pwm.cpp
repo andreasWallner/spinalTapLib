@@ -36,7 +36,7 @@ void pwm::set_width(uint8_t idx, uint8_t w) {
 std::array<uint8_t, 3> pwm::widths() const {
   std::array<uint8_t, 3> w;
   // TODO read all at once
-  for(int idx = 0; idx < w.size(); idx++)
+  for (int idx = 0; idx < w.size(); idx++)
     w[idx] = static_cast<uint8_t>(device_.readRegister(idx_to_address(idx)));
   return w;
 }
@@ -47,4 +47,4 @@ void pwm::set_widths(gsl::span<uint8_t, 3> w) {
                           {idx_to_address(2), w[2]}});
 }
 
-} // namespace spinaltap
+} // namespace spinaltap::pwm

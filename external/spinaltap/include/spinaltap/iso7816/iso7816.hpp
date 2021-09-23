@@ -74,8 +74,12 @@ public:
   uint32_t character_guard_time();
   void set_character_guard_time(uint32_t cgt);
 
+  // TODO really return those as durations?
   duration iso_clock() const;
   duration set_iso_clock(frequency f);
+
+  duration datarate() const;
+  duration set_datarate(frequency f);
 
   duration block_timeout() const;
   duration set_block_timeout(duration);

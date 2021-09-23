@@ -191,21 +191,53 @@ static uint32_t frequency_to_divider(master::frequency f,
 
 master::duration master::set_iso_clock(frequency f) {
   auto div = frequency_to_divider(f, clock_freq_);
-  device_.writeRegister(registers::clockrate,
-                        frequency_to_divider(f, clock_freq_));
+  device_.writeRegister(registers::clockrate, div);
   return divider_to_duration(div, clock_freq_);
 }
 
+master::duration master::datarate() const {
+  auto reg = device_.readRegister(registers::config2);
+  return divider_to_duration(reg, clock_freq_);
+}
+
+master::duration master::set_datarate(frequency dr) {
+  auto div = frequency_to_divider(dr, clock_freq_);
+  device_.writeRegister(registers::config2, div);
+  return divider_to_duration(div, clock_freq_);
+}
+
+master::duration master::block_timeout() const {
+  return divider_to_duration(device_.readRegister(registers::config7),
+                             clock_freq_);
+}
+
+master::duration master::set_block_timeout(duration timeout) {
+  auto val = duration_to_divider(timeout, clock_freq_);
+  device_.writeRegister(registers::config7, val);
+  return divider_to_duration(val, clock_freq_);
+}
+
+master::duration master::character_timeout() const {
+  return divider_to_duration(device_.readRegister(registers::config8),
+                             clock_freq_);
+}
+
+master::duration master::set_character_timeout(duration timeout) {
+  auto val = duration_to_divider(timeout, clock_freq_);
+  device_.writeRegister(registers::config8, val);
+  return divider_to_duration(val, clock_freq_);
+}
+
 uint16_t master::rx_fifo_available() const {
-  auto ret = device_.readRegister(registers::fifo_levels);
-  return (ret & registers::fifo_levels_rx_occupancy_msk) >>
-         registers::fifo_levels_rx_occupancy_pos;
+  auto ret = device_.readRegister(registers::buffers);
+  return (ret & registers::buffers_rx_occupancy_msk) >>
+         registers::buffers_rx_occupancy_pos;
 }
 
 uint16_t master::tx_fifo_free() const {
-  auto ret = device_.readRegister(registers::fifo_levels);
-  return (ret & registers::fifo_levels_tx_available_msk) >>
-         registers::fifo_levels_tx_available_pos;
+  auto ret = device_.readRegister(registers::buffers);
+  return (ret & registers::buffers_tx_available_msk) >>
+         registers::buffers_tx_available_pos;
 }
 
 } // namespace spinaltap::iso7816
