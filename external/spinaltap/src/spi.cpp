@@ -4,12 +4,12 @@
 
 namespace spinaltap::spi {
 
-static uint32_t calc_divider(double freq, double module_freq,
-                             uint32_t divider_width) {
-  uint32_t divider = static_cast<double>(module_freq) / freq;
+constexpr static uint32_t calc_divider(double freq, double module_freq,
+                                       uint32_t divider_width) {
+  uint32_t divider = static_cast<uint32_t>(module_freq / freq);
   if (divider < 1)
     throw std::runtime_error("invalid frequency, too high");
-  if (divider >= (1 << divider_width))
+  if (divider >= (1U << divider_width))
     throw std::runtime_error("invalid frequency, too low");
   return divider;
 }
@@ -118,11 +118,11 @@ void master::set_ss_assert_guard_clocks(uint8_t clocks) {
 }
 
 uint8_t master::ss_deassert_guard_clocks() const {
-  uint8_t clocks = (device_.readRegister(registers::guard_times) &
-                    registers::guard_times_deassert_msk) >>
-                   registers::guard_times_deassert_pos;
+  auto clocks = (device_.readRegister(registers::guard_times) &
+                 registers::guard_times_deassert_msk) >>
+                registers::guard_times_deassert_pos;
 
-  return clocks;
+  return static_cast<uint8_t>(clocks);
 }
 
 void master::set_ss_deassert_guard_clocks(uint8_t clocks) {
@@ -152,16 +152,19 @@ void master::send(gsl::span<const uint8_t> tx, ss_action ss) {
   device_.writeRegister(base_address_ + registers::trigger,
                         registers::trigger_flush |
                             registers::trigger_transceive | ss_to_trigger(ss));
-  device_.poll(base_address_ + registers::status, registers::status_busy, 0);
+  if (!device_.poll(base_address_ + registers::status, registers::status_busy,
+                    0))
+    throw std::runtime_error("timeout, poll never finished");
 }
 
 void master::recv(gsl::span<uint8_t> rx, ss_action ss) {
   logging::logger->debug("SPI rx {} bytes", rx.size());
 
-  std::vector<uint8_t> dummy(0, rx.size());
+  std::vector<uint8_t> dummy(rx.size(), 0);
   transceive(dummy, rx, ss);
 
-  logging::logger->debug("SPI rx: < {:n}");
+  logging::logger->debug("SPI rx: < {:n}",
+                         spdlog::to_hex(rx.begin(), rx.end()));
 }
 
 void master::raw_transceive(gsl::span<const uint8_t> tx, gsl::span<uint8_t> rx,
@@ -173,7 +176,9 @@ void master::raw_transceive(gsl::span<const uint8_t> tx, gsl::span<uint8_t> rx,
   device_.writeRegister(base_address_ + registers::trigger,
                         registers::trigger_flush |
                             registers::trigger_transceive | ss_to_trigger(ss));
-  device_.poll(base_address_ + registers::status, registers::status_busy, 0);
+  if (!device_.poll(base_address_ + registers::status, registers::status_busy,
+                    0))
+    throw std::runtime_error("timeout, poll never finished");
   device_.readStream(base_address_ + registers::rx, gsl::as_writable_bytes(rx));
 }
 

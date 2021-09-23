@@ -32,7 +32,8 @@ void master::stop_clock() {
   device_.writeRegister(registers::trigger, registers::trigger_stop_clock);
 }
 
-static interface_state_t to_interface_state(uint32_t status) {
+constexpr static interface_state_t
+to_interface_state(uint32_t status) noexcept {
   switch (static_cast<registers::status_state_t>(
       (status & registers::status_state_mask) >> registers::status_state_pos)) {
   case registers::status_state_t::inactive:
@@ -44,14 +45,15 @@ static interface_state_t to_interface_state(uint32_t status) {
   case registers::status_state_t::clockstop:
     return interface_state_t::clockstop;
   }
+  return interface_state_t::inactive; // should not happen
 }
 
 static module_state_t to_module_state(uint32_t status) {
-  if (status & registers::status_rx_active != 0)
+  if ((status & registers::status_rx_active) != 0)
     return module_state_t::rx;
-  else if (status & registers::status_tx_active != 0)
+  else if ((status & registers::status_tx_active) != 0)
     return module_state_t::tx;
-  else if (status & registers::status_change_active != 0)
+  else if ((status & registers::status_change_active) != 0)
     return module_state_t::state_change;
   return module_state_t::idle;
 }
@@ -61,13 +63,13 @@ std::tuple<module_state_t, interface_state_t> master::state() const {
   return {to_module_state(reg), to_interface_state(reg)};
 }
 
-master::duration divider_to_duration(float div, float freq) {
-  auto time{div / freq};
+master::duration divider_to_duration(uint64_t div, uint64_t freq) {
+  auto time{static_cast<double>(div) / freq};
   return std::chrono::duration_cast<master::duration>(
       std::chrono::duration<float>(time));
 }
 
-uint32_t duration_to_divider(master::duration duration, float freq) {
+uint32_t duration_to_divider(master::duration duration, uint64_t freq) {
   auto float_seconds{
       std::chrono::duration_cast<std::chrono::duration<float>>(duration)};
   return static_cast<uint32_t>(float_seconds.count() * freq);
@@ -111,7 +113,6 @@ master::set_reset_timing(std::array<master::duration, 6> times) {
 }
 
 std::vector<std::byte> master::receive() {
-  auto levels = device_.readRegister(registers::fifo_levels);
   auto rx_level = rx_fifo_available();
 
   std::vector<std::byte> ret;

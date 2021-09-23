@@ -6,7 +6,7 @@ namespace spinaltap::pwm {
 uint32_t pwm::idx_to_address(int idx) const {
   if (idx > 2)
     throw std::runtime_error("invalid PWM index"); // TODO custom exception
-  return baseAddress_ + registers::level(idx);
+  return baseAddress_ + registers::level(static_cast<uint8_t>(idx));
 }
 
 uint32_t pwm::max_count() const {
@@ -37,7 +37,7 @@ std::array<uint8_t, 3> pwm::widths() const {
   std::array<uint8_t, 3> w;
   // TODO read all at once
   for(int idx = 0; idx < w.size(); idx++)
-    w[idx] = device_.readRegister(idx_to_address(idx));
+    w[idx] = static_cast<uint8_t>(device_.readRegister(idx_to_address(idx)));
   return w;
 }
 
