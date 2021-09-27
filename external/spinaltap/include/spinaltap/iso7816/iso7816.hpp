@@ -63,7 +63,7 @@ public:
   template <std::size_t N>
   std::array<std::byte, N> receive(duration timeout = std::chrono::seconds(1));
   std::vector<std::byte> receiveAll();
-  size_t receive(gsl::span<std::byte> buffer);
+  //size_t receive(gsl::span<std::byte> buffer); // better called read?
   void transmit(gsl::span<std::byte> bytes,
                 start_receive_t receive = start_receive_t::yes,
                 rx_flush_t rx_flush = rx_flush_t::flush);
@@ -83,8 +83,10 @@ public:
 
   duration block_timeout() const;
   duration set_block_timeout(duration);
+  void disable_block_timeout();
   duration character_timeout() const;
   duration set_character_timeout(duration);
+  void disable_character_timeout();
 
   uint16_t rx_fifo_available() const;
   uint16_t tx_fifo_free() const;

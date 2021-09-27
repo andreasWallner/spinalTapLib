@@ -217,6 +217,10 @@ master::duration master::set_block_timeout(duration timeout) {
   return divider_to_duration(val, clock_freq_);
 }
 
+void master::disable_block_timeout() {
+  device_.writeRegister(registers::config7, 0);
+}
+
 master::duration master::character_timeout() const {
   return divider_to_duration(device_.readRegister(registers::config8),
                              clock_freq_);
@@ -226,6 +230,10 @@ master::duration master::set_character_timeout(duration timeout) {
   auto val = duration_to_divider(timeout, clock_freq_);
   device_.writeRegister(registers::config8, val);
   return divider_to_duration(val, clock_freq_);
+}
+
+void master::disable_character_timeout() {
+  device_.writeRegister(registers::config8, 0);
 }
 
 uint16_t master::rx_fifo_available() const {
