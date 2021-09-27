@@ -8,6 +8,7 @@
 #include "spinaltap.hpp"
 #include "spinaltap/gpio/gpio.hpp"
 #include "spinaltap/iomux/iomux.hpp"
+#include "spinaltap/iso7816/iso7816.hpp"
 #include "spinaltap/logging.hpp"
 #include "spinaltap/pwm/pwm.hpp"
 #include "spinaltap/pwm/registers.hpp"
@@ -354,6 +355,91 @@ static void spitest(spinaltap::device &device) {
   spi.transceive(buffer, buffer);
 }
 
+constexpr int popcount(std::byte b) noexcept {
+  constexpr std::byte operator""_b(unsigned long long x) {
+    return static_cast<std::byte>(x);
+  };
+  return std::to_integer<int>((b >> 0) & 1_b) +
+         std::to_integer<int>((b >> 1) & 1_b) +
+         std::to_integer<int>((b >> 2) & 1_b) +
+         std::to_integer<int>((b >> 3) & 1_b) +
+         std::to_integer<int>((b >> 4) & 1_b) +
+         std::to_integer<int>((b >> 5) & 1_b) +
+         std::to_integer<int>((b >> 6) & 1_b) +
+         std::to_integer<int>((b >> 7) & 1_b);
+}
+
+std::vector<std::byte>
+receive_atr(std::function<bool(gsl::span<std::byte> buffer)> recv_func) {
+  constexpr std::byte operator""_b(unsigned long long x) {
+    return static_cast<std::byte>(x);
+  };
+  constexpr std::size_t max_atr_size = 32;
+  std::array<std::byte, max_atr_size> memory;
+  gsl::span<std::byte> remaining(memory);
+  bool needs_tck = false;
+
+  if (!recv_func(remaining.first(2)))
+    return {};
+
+  if (remaining[0] != 0x3B_b)
+    return {};
+  auto TDx = remaining[1];
+  const auto K = std::to_integer<int>(remaining[1] & 0x0f_b);
+  remaining = remaining.subspan(2);
+
+  int next_block_len;
+  while ((next_block_len = popcount(TDx & 0xf0_b))) {
+    if (next_block_len > remaining.size())
+      return {};
+
+    if (!recv_func(remaining.first(next_block_len)))
+      return {};
+
+    if ((TDx & 0x80_b) != 0_b)
+      TDx = remaining[next_block_len - 1];
+    else
+      TDx = 0_b;
+
+    if ((TDx & 0x0f_b) != 0_b)
+      needs_tck = true;
+
+    remaining = remaining.subspan(next_block_len);
+  }
+
+  if (!recv_func(remaining.first(K)))
+    return {};
+  remaining = remaining.subspan(K);
+
+  if (needs_tck) {
+    if (!recv_func(remaining.first(1)))
+      return {};
+    remaining = remaining.subspan(1);
+  }
+
+  return {memory.begin(), memory.end() - remaining.size()};
+}
+
+static void isotest(spinaltap::device &device) {
+  using namespace spinaltap::iso7816;
+  using namespace std::chrono;
+
+  spinaltap::iomux::iomux mux(device, module_base::mux);
+  spinaltap::iso7816::master iso(device, module_base::iso7816);
+
+  mux.connect(mux_input::iso7816, 0);
+  iso.set_iso_clock(3700000U);
+  iso.set_datarate(9200);
+  iso.set_character_timeout(
+      round<master::duration>(duration<double>(40000.0 / 3.7e6)));
+  iso.disable_block_timeout();
+
+  iso.activate(start_receive_t::yes, rx_flush_t::flush);
+  auto atr = receive_atr([&] (gsl::span<std::byte> buffer) {
+    return iso.receive(buffer);
+  });
+}
+
 static void perftest(spinaltap::device &device) {
   constexpr size_t cnt = 100;
 
@@ -421,6 +507,8 @@ static bool interactiveShell(spinaltap::device &device) {
     iotest(device);
   } else if (pieces.at(0) == "spitest") {
     spitest(device);
+  } else if (pieces.at(0) == "isotest") {
+    isotest(device);
   } else if (pieces.at(0) == "perftest") {
     perftest(device);
   } else {
