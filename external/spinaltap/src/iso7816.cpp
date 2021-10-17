@@ -1,5 +1,6 @@
 #include "spinaltap/iso7816/iso7816.hpp"
 #include "spinaltap/iso7816/registers.hpp"
+#include "spinaltap/logging.hpp"
 
 #include <cmath>
 
@@ -10,6 +11,7 @@ std::size_t master::rx_buffer_size() const { return rx_buffer_size_; }
 std::size_t master::tx_buffer_size() const { return tx_buffer_size_; }
 
 void master::activate(start_receive_t receive, rx_flush_t rx_flush) {
+  logging::logger->debug("UART activate");
   if (rx_flush == rx_flush_t::flush) {
     device_.writeRegister(registers::trigger, registers::trigger_rx_flush);
   }
@@ -21,14 +23,17 @@ void master::activate(start_receive_t receive, rx_flush_t rx_flush) {
 }
 
 void master::deactivate() {
+  logging::logger->debug("UART deactivate");
   device_.writeRegister(registers::trigger, registers::trigger_deactivate);
 }
 
 void master::reset() {
+  logging::logger->debug("UART reset");
   device_.writeRegister(registers::trigger, registers::trigger_reset);
 }
 
 void master::stop_clock() {
+  logging::logger->debug("UART stop clock");
   device_.writeRegister(registers::trigger, registers::trigger_stop_clock);
 }
 
@@ -59,8 +64,12 @@ static module_state_t to_module_state(uint32_t status) {
 }
 
 std::tuple<module_state_t, interface_state_t> master::state() const {
-  auto reg = device_.readRegister(registers::status);
-  return {to_module_state(reg), to_interface_state(reg)};
+  const auto reg = device_.readRegister(registers::status);
+  const auto module = to_module_state(reg);
+  const auto interface = to_interface_state(reg);
+  logging::logger->debug("UART state: module {} interface {}", module,
+                         interface);
+  return {module, interface};
 }
 
 master::duration divider_to_duration(uint64_t div, uint64_t freq) {
@@ -111,17 +120,22 @@ master::set_reset_timing(std::array<master::duration, 6> times) {
   // TODO return correct times
   return times;
 }
-
+// read
 std::vector<std::byte> master::receive() {
+  logging::logger->debug("UART read buffer");
   auto rx_level = rx_fifo_available();
 
   std::vector<std::byte> ret;
   ret.resize(rx_level);
   device_.readStream(registers::rx_fifo, gsl::span<std::byte>(ret));
+  logging::logger->debug("UART read: < {:n}",
+                         spdlog::to_hex(ret.begin(), ret.end()));
   return ret;
 }
-
-bool master::receive(gsl::span<std::byte> buffer, duration timeout) {
+// wait and read
+bool master::receive(gsl::span<std::byte> buffer,
+                     duration timeout /* = std::chrono::seconds(1) */) {
+  logging::logger->debug("UART read {} bytes", buffer.size());
   const auto end = std::chrono::system_clock::now() + timeout;
   while (rx_fifo_available() < buffer.size()) {
     if (std::chrono::system_clock::now() > end)
@@ -129,12 +143,15 @@ bool master::receive(gsl::span<std::byte> buffer, duration timeout) {
   }
 
   device_.readStream(registers::rx_fifo, buffer);
+  logging::logger->debug("UART read: < {:n}",
+                         spdlog::to_hex(cbegin(buffer), cend(buffer)));
   return true;
 }
-
+//wait and read
 std::vector<std::byte>
 master::receive(std::size_t n,
                 duration timeout /* = std::chrono::seconds(1) */) {
+  logging::logger->debug("UART read {} bytes", n);
   const auto end = std::chrono::system_clock::now() + timeout;
   while (rx_fifo_available() < n) {
     if (std::chrono::system_clock::now() > end)
@@ -144,9 +161,11 @@ master::receive(std::size_t n,
   std::vector<std::byte> ret;
   ret.resize(n);
   device_.readStream(registers::rx_fifo, gsl::span<std::byte>(ret));
+  logging::logger->debug("UART read: < {:n}",
+                         spdlog::to_hex(cbegin(ret), cend(ret)));
   return ret;
 }
-
+// read
 template <std::size_t N>
 std::array<std::byte, N>
 master::receive(duration timeout /* = std::chrono::seconds(1) */) {
@@ -246,6 +265,15 @@ uint16_t master::tx_fifo_free() const {
   auto ret = device_.readRegister(registers::buffers);
   return (ret & registers::buffers_tx_available_msk) >>
          registers::buffers_tx_available_pos;
+}
+
+void master::read_cache() {
+  clock_freq_ = device_.readRegister(registers::frequency);
+  auto buffers = device_.readRegister(registers::buffer_sizes);
+  rx_buffer_size_ = (buffers & registers::buffer_sizes_rx_buffer_size_msk) >>
+                    registers::buffer_sizes_rx_buffer_size_pos;
+  tx_buffer_size_ = (buffers & registers::buffer_sizes_tx_buffer_size_msk) >>
+                    registers::buffer_sizes_tx_buffer_size_pos;
 }
 
 } // namespace spinaltap::iso7816
