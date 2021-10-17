@@ -5,7 +5,12 @@
 namespace spinaltap::iso7816::registers {
 
 constexpr uint32_t frequency = 0x00U;
+
 constexpr uint32_t buffer_sizes = 0x04U;
+constexpr uint32_t buffer_sizes_rx_buffer_size_pos = 0;
+constexpr uint32_t buffer_sizes_rx_buffer_size_msk = 0xffffU;
+constexpr uint32_t buffer_sizes_tx_buffer_size_pos = 16;
+constexpr uint32_t buffer_sizes_tx_buffer_size_msk = 0xffff0000U;
 
 enum class status_state_t {
   inactive = 0,
