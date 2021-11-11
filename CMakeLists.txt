@@ -13,6 +13,8 @@ endif()
 option(spinaltap_BUILD_TESTS "Build unittests for spinaltap" ${spinaltap_ROOT_PROJECT})
 option(spinaltap_BUILD_TOOLS "Build spinaltap tools" ${spinaltap_ROOT_PROJECT})
 
+include(cmake/CPM.cmake)
+
 if(spinaltap_ROOT_PROJECT)
     if(MSVC_VERSION GREATER 1910) # 1911 is 15.3 update
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -permissive-")

@@ -2,15 +2,11 @@ project(libusb VERSION 1.0.24 LANGUAGES C)
 set(CMAKE_C_STANDARD 99)
 include(FindThreads)
 
-include(FetchContent)
-FetchContent_Declare(
-  libusb
-  GIT_REPOSITORY https://github.com/libusb/libusb.git
-  GIT_TAG v1.0.24
+CPMAddPackage(
+    NAME libusb
+    GIT_TAG v1.0.24
+    GIT_REPOSITORY https://github.com/libusb/libusb.git
 )
-if(NOT libusb_POPULATED)
-  FetchContent_Populate(libusb)
-endif()
 
 set(PTHREADS_ENABLED FALSE)
 if (CMAKE_USE_PTHREADS_INIT)
