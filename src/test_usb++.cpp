@@ -355,10 +355,11 @@ static void spitest(spinaltap::device &device) {
   spi.transceive(buffer, buffer);
 }
 
+constexpr std::byte operator""_b(unsigned long long x) {
+  return static_cast<std::byte>(x);
+};
+
 constexpr int popcount(std::byte b) noexcept {
-  constexpr std::byte operator""_b(unsigned long long x) {
-    return static_cast<std::byte>(x);
-  };
   return std::to_integer<int>((b >> 0) & 1_b) +
          std::to_integer<int>((b >> 1) & 1_b) +
          std::to_integer<int>((b >> 2) & 1_b) +
@@ -371,9 +372,6 @@ constexpr int popcount(std::byte b) noexcept {
 
 std::vector<std::byte>
 receive_atr(std::function<bool(gsl::span<std::byte> buffer)> recv_func) {
-  constexpr std::byte operator""_b(unsigned long long x) {
-    return static_cast<std::byte>(x);
-  };
   constexpr std::size_t max_atr_size = 32;
   std::array<std::byte, max_atr_size> memory;
   gsl::span<std::byte> remaining(memory);
@@ -423,21 +421,29 @@ receive_atr(std::function<bool(gsl::span<std::byte> buffer)> recv_func) {
 static void isotest(spinaltap::device &device) {
   using namespace spinaltap::iso7816;
   using namespace std::chrono;
+  using namespace std::chrono_literals;
 
   spinaltap::iomux::iomux mux(device, module_base::mux);
   spinaltap::iso7816::master iso(device, module_base::iso7816);
 
+  auto frequency = 3700000U;
   mux.connect(mux_input::iso7816, 0);
-  iso.set_iso_clock(3700000U);
+  iso.set_iso_clock(frequency);
   iso.set_datarate(9200);
   iso.set_character_timeout(
-      round<master::duration>(duration<double>(40000.0 / 3.7e6)));
+      round<master::duration>(duration<double>(40000.0 / frequency)));
   iso.disable_block_timeout();
+  iso.set_reset_timing(std::array<master::duration, 6>{
+      round<master::duration>(duration<double>(200.0 / frequency)),
+      round<master::duration>(duration<double>(400.0 / frequency)), 0ms, 20ms,
+      10ms, 0ms});
 
   iso.activate(start_receive_t::yes, rx_flush_t::flush);
-  auto atr = receive_atr([&] (gsl::span<std::byte> buffer) {
-    return iso.receive(buffer);
-  });
+  auto atr = receive_atr(
+      [&](gsl::span<std::byte> buffer) { return iso.receive(buffer); });
+  std::vector<uint8_t> atru8((uint8_t *)atr.data(),
+                             (uint8_t *)atr.data() + atr.size());
+  fmt::print("RX ATR {:02x}", fmt::join(atru8, ""));
 }
 
 static void perftest(spinaltap::device &device) {
