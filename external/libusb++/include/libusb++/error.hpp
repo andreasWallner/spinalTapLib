@@ -1,16 +1,6 @@
 #pragma once
 
-#define WIN32_LEAN_AND_MEAN
-#define NOCOMM
-#define NOMINMAX
-#if __has_include("libusb.h")
-#include <libusb.h>
-#else
-#include <libusb-1.0/libusb.h>
-#endif
-#undef NOMINMAX
-#undef NOCOMM
-#undef WIN32_LEAN_AND_MEAN
+#include "libusb++/details/libusb.hpp"
 #include <stdexcept>
 #include <system_error>
 
@@ -35,10 +25,13 @@ enum class errors {
 class error_category : public std::error_category {
 public:
   const char *name() const noexcept override { return "usb error"; }
+  
   std::string message(int value) const override {
     return libusb_error_name(static_cast<libusb_error>(value));
   }
-  std::error_condition default_error_condition(int value) const noexcept override {
+
+  std::error_condition
+  default_error_condition(int value) const noexcept override {
     switch (static_cast<errors>(value)) {
     case errors::IO_ERROR:
       return std ::errc::io_error;

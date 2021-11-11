@@ -1,6 +1,7 @@
 #pragma once
 
 #include "libusb++/descriptors.hpp"
+#include "libusb++/details/libusb.hpp"
 #include "libusb++/error.hpp"
 #include "libusb++/helper.hpp"
 #include "libusb++/logging.hpp"
@@ -13,18 +14,6 @@
 #include <vector>
 
 #include <fmt/core.h>
-
-#define WIN32_LEAN_AND_MEAN
-#define NOCOMM
-#define NOMINMAX
-#if __has_include("libusb.h")
-#include <libusb.h>
-#else
-#include <libusb-1.0/libusb.h>
-#endif
-#undef NOMINMAX
-#undef NOCOMM
-#undef WIN32_LEAN_AND_MEAN
 
 namespace usb {
 

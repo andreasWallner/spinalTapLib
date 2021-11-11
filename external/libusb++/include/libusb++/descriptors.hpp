@@ -21,6 +21,7 @@ public:
   const uint8_t bSynchAddress;
   const std::vector<uint8_t> extra;
 };
+
 class interface_descriptor {
 public:
   interface_descriptor(uint8_t bInterfaceNumber, uint8_t bAlternateSetting,
@@ -42,6 +43,7 @@ public:
   const std::vector<endpoint_descriptor> endpoints;
   const std::vector<uint8_t> extra;
 };
+
 class config_descriptor {
 public:
   config_descriptor(uint8_t bConfigurationValue, uint8_t iConfiguration,
