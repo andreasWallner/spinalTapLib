@@ -18,7 +18,9 @@ enum class cmd : uint8_t {
   read = 0x02,
   flush = 0xff,
   writeStream8 = 0x03,
-  readStream8 = 0x04
+  readStream8 = 0x04,
+  readStream32 = 0x05,
+  readModifyWrite = 0x06
 };
 class device {
 public:
@@ -26,6 +28,7 @@ public:
 
   uint32_t readRegister(uint32_t address);
   void readStream(uint32_t address, gsl::span<std::byte> data);
+  void readStream(uint32_t address, gsl::span<uint32_t> data);
 
   void writeRegister(uint32_t address, uint32_t value);
   void writeStream(uint32_t address, gsl::span<const std::byte> data);

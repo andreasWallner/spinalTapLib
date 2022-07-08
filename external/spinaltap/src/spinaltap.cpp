@@ -62,6 +62,26 @@ void device::readStream(uint32_t address, gsl::span<std::byte> data) {
   util::copy(data, gsl::as_bytes(gsl::span(buffer).subspan(2)));
 }
 
+void device::readStream(uint32_t address, gsl::span<uint32_t> data) {
+  if (address >= std::numeric_limits<uint16_t>::max())
+    throw std::logic_error("impossile register address");
+
+  std::array<uint8_t, 6> msg;
+  msg[0] = ctr++;
+  msg[1] = static_cast<uint8_t>(cmd::readStream32);
+  endian::store(static_cast<uint16_t>(address), gsl::span(msg).subspan<2, 2>());
+  endian::store(static_cast<uint16_t>(data.size()),
+                gsl::span(msg).subspan<4, 2>());
+
+  out_ep_.bulk_write_all(msg);
+
+  std::vector<uint8_t> buffer(data.size_bytes() + 2, 0);
+  in_ep_.bulk_read_all(buffer, std::chrono::milliseconds(500));
+  for (int i = 0; i < data.size(); i++) {
+    data[i] = endian::load<uint32_t>(gsl::span(buffer).subspan(2 + i * 4, 4));
+  }
+}
+
 void device::writeRegister(uint32_t address, uint32_t value) {
   logging::logger->debug("write @{:04x}={:04x}", address, value);
   std::array<uint8_t, 8> msg;
