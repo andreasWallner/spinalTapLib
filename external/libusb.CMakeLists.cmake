@@ -1,4 +1,4 @@
-project(libusb VERSION 1.0.24 LANGUAGES C)
+project(libusb_wrapper VERSION 1.0.24 LANGUAGES C)
 set(CMAKE_C_STANDARD 99)
 include(FindThreads)
 
@@ -6,6 +6,7 @@ CPMAddPackage(
     NAME libusb
     GIT_TAG v1.0.24
     GIT_REPOSITORY https://github.com/libusb/libusb.git
+    DOWNLOAD_ONLY
 )
 
 set(PTHREADS_ENABLED FALSE)
@@ -21,8 +22,9 @@ set(THREADS_POSIX ${PTHREADS_ENABLED} CACHE INTERNAL "use pthreads" FORCE)
 if (CMAKE_THREAD_LIBS_INIT)
 	list(APPEND LIBUSB_LIBRARIES ${CMAKE_THREAD_LIBS_INIT})
 endif()
-
-add_library(usb-1.0
+message("location of libusb: ${libusb_SOURCE_DIR}")
+add_library(usb-1.0 "")
+target_sources(usb-1.0 PRIVATE
 	${libusb_SOURCE_DIR}/libusb/core.c
 	${libusb_SOURCE_DIR}/libusb/descriptor.c
 	${libusb_SOURCE_DIR}/libusb/io.c
@@ -48,22 +50,22 @@ if (WIN32 OR "${CMAKE_SYSTEM_NAME}" STREQUAL "CYGWIN")
 		set(WITHOUT_POLL_H TRUE CACHE INTERNAL "Disable using poll.h even if it's available - use windows poll instead fo cygwin's" FORCE)
 	endif()
 	
-	target_sources(usb-1.0 PUBLIC
+	target_sources(usb-1.0 PRIVATE
   ${libusb_SOURCE_DIR}/libusb/os/events_windows.c
   ${libusb_SOURCE_DIR}/libusb/os/windows_winusb.c
   ${libusb_SOURCE_DIR}/libusb/os/windows_common.c
   ${libusb_SOURCE_DIR}/libusb/os/windows_usbdk.c
 	)
 	if (PTHREADS_ENABLED AND NOT WITHOUT_PTHREADS)
-		target_sources(usb-1.0 PUBLIC ${libusb_SOURCE_DIR}/libusb/os/threads_posix.c)
+		target_sources(usb-1.0 PRIVATE ${libusb_SOURCE_DIR}/libusb/os/threads_posix.c)
 	else()
-		target_sources(usb-1.0 PUBLIC ${libusb_SOURCE_DIR}/libusb/os/threads_windows.c)
+		target_sources(usb-1.0 PRIVATE ${libusb_SOURCE_DIR}/libusb/os/threads_windows.c)
 	endif()
 elseif (UNIX)
 	# Unix is for all *NIX systems including OSX
 	set(PLATFORM_POSIX 1 CACHE INTERNAL "controls config.h macro definition" FORCE)
 
-	target_sources(usb-1.0 PUBLIC
+	target_sources(usb-1.0 PRIVATE
   ${libusb_SOURCE_DIR}/libusb/os/linux_usbfs.c
   ${libusb_SOURCE_DIR}/libusb/os/threads_posix.c
 		${libusb_SOURCE_DIR}/libusb/os/events_posix.c
